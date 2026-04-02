@@ -1,0 +1,115 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  background-color: #f0f2f5;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+.cadastro-container {
+  width: 100%;
+  max-width: 450px;
+  padding: 20px;
+}
+
+.cadastro-box {
+  background: white;
+  padding: 40px;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+h1 {
+  color: #1a73e8;
+  margin-bottom: 5px;
+}
+
+p {
+  color: #5f6368;
+  margin-bottom: 25px;
+  font-size: 14px;
+}
+
+.input-group {
+  text-align: left;
+  margin-bottom: 15px;
+}
+
+label {
+  display: block;
+  margin-bottom: 5px;
+  color: #202124;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #dadce0;
+  border-radius: 5px;
+  outline: none;
+  transition: all 0.3s;
+}
+
+input:focus {
+  border: 2px solid #1a73e8;
+  background-color: #fff;
+}
+
+button {
+  width: 100%;
+  padding: 12px;
+  background-color: #1a73e8;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.3s;
+  margin-top: 10px;
+}
+
+button:hover {
+  background-color: #1557b0;
+}
+
+.link-voltar {
+  display: block;
+  margin-top: 20px;
+  color: #1a73e8;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.link-voltar:hover {
+  text-decoration: underline;
+}
+
+#message {
+  margin-top: 15px;
+  font-size: 13px;
+  padding: 10px;
+  border-radius: 4px;
+  display: none;
+}
+
+.error {
+  background: #fce8e6;
+  color: #d93025;
+  border: 1px solid #f5c2c7;
+}
+.success {
+  background: #e6f4ea;
+  color: #1e8e3e;
+  border: 1px solid #c3e6cb;
+}

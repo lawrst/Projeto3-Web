@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard - Verifiq</title>
+    <link rel="stylesheet" href="dashboard.css" />
+  </head>
+  <body>
+    <div class="container">
+      <aside class="sidebar">
+        <h2>Verifiq</h2>
+        <nav>
+          <ul>
+            <li class="active">Visão Geral</li>
+            <li>Kanban</li>
+            <li>Relatórios</li>
+            <li>Configurações</li>
+          </ul>
+        </nav>
+        <div class="status-seguranca">
+          <p>Status: <span id="cameraStatus">Ativo</span></p>
+          <div class="camera-preview">
+            <div id="videoPlaceholder">Câmera Off</div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header>
+          <h1 id="welcomeMsg">Olá, Lawrence</h1>
+          <button id="logoutBtn">Sair</button>
+        </header>
+
+        <section class="kanban">
+          <div class="column" id="to-do">
+            <h3>A Fazer</h3>
+            <div class="task-list" id="list-todo"></div>
+            <button class="add-task" onclick="abrirModal()">
+              + Nova Tarefa
+            </button>
+          </div>
+
+          <div class="column" id="doing">
+            <h3>Fazendo</h3>
+            <div class="task-list" id="list-doing"></div>
+          </div>
+
+          <div class="column" id="done">
+            <h3>Concluído</h3>
+            <div class="task-list" id="list-done"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="dashboard.js"></script>
+    <div id="modalTarefa" class="modal">
+      <div class="modal-content">
+        <span class="close" onclick="fecharModal()">&times;</span>
+        <h2>Cadastrar Nova Tarefa</h2>
+        <form id="formTarefa">
+          <input
+            type="text"
+            id="tituloTarefa"
+            placeholder="Título da Tarefa"
+            required
+          />
+          <textarea
+            id="descTarefa"
+            placeholder="Descrição detalhada"
+            rows="4"
+          ></textarea>
+          <button type="submit" class="btn-salvar">Salvar Tarefa</button>
+        </form>
+      </div>
+    </div>
+  </body>
+</html>

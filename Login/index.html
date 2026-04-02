@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Verifiq - Login</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="script.js"></script>
+  </head>
+  <body>
+    <div class="login-container">
+      <div class="login-box">
+        <h1>Verifiq</h1>
+        <p>Segurança e Gestão Remota</p>
+
+        <form id="loginForm">
+          <div class="input-group">
+            <label for="email">E-mail</label>
+            <input
+              type="email"
+              id="email"
+              placeholder="seu@email.com"
+              required
+            />
+          </div>
+
+          <div class="input-group">
+            <label for="password">Senha</label>
+            <input
+              type="password"
+              id="password"
+              placeholder="••••••••"
+              required
+            />
+          </div>
+
+          <button type="submit" id="loginBtn">Entrar</button>
+        </form>
+
+        <div class="signup-link">
+          <p>
+            Não tem uma conta?
+            <a href="../Cadastro/cadastro.html">Cadastre-se aqui</a>
+          </p>
+        </div>
+
+        <div id="message" class="error-msg"></div>
+      </div>
+    </div>
+    <script src="script.js"></script>
+  </body>
+</html>
