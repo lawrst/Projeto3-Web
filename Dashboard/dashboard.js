@@ -3,16 +3,16 @@ try {
   const usuario = usuarioSalvo
     ? JSON.parse(usuarioSalvo)
     : { nome: "Lawrence", id: "1" };
-  document.getElementById("welcomeMsg").innerText = `Olá, ${usuario.nome}`;
+  const msgElement = document.getElementById("welcomeMsg");
+  if (msgElement) msgElement.innerText = `Olá, ${usuario.nome}`;
 } catch (e) {
   console.error("Erro ao carregar usuário:", e);
-  document.getElementById("welcomeMsg").innerText = "Olá, Lawrence";
 }
 
 const tarefasMock = [
   { _id: "1", titulo: "Configurar OpenCV", status: "A Fazer" },
-  { _id: "2", titulo: "Criar Tela de Login", status: "Fazendo" },
-  { _id: "3", titulo: "Setup do Banco de Dados", status: "Concluído" },
+  { _id: "2", titulo: "Setup do Banco de Dados", status: "Fazendo" },
+  { _id: "3", titulo: "Criar Tela de Login", status: "Concluído" },
 ];
 
 function renderizarTarefas(lista) {
@@ -53,6 +53,15 @@ window.onclick = function (event) {
 
 document.addEventListener("DOMContentLoaded", () => {
   renderizarTarefas(tarefasMock);
+
+  const statusCamera = document.getElementById("cameraStatus");
+  const previewBox = document.getElementById("videoPlaceholder");
+
+  if (statusCamera && previewBox) {
+    statusCamera.innerText = "OFF";
+    statusCamera.style.color = "#28a745";
+    previewBox.innerHTML = "<p style='color: #28a745; font-weight: bold;'></p>";
+  }
 
   const form = document.getElementById("formTarefa");
   if (form) {

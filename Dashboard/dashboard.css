@@ -6,7 +6,7 @@
 }
 
 body {
-  background-color: var(--bg);
+  background-color: #8ea0bd;
   font-family: "Segoe UI", sans-serif;
   overflow: hidden;
 }
