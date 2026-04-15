@@ -3,24 +3,74 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Dashboard - Verifiq</title>
+    <title>Inspectra - Dashboard</title>
     <link rel="stylesheet" href="dashboard.css" />
   </head>
   <body>
     <div class="container">
       <aside class="sidebar">
-        <h2>Verifiq</h2>
+        <h2><span>Inspectra</span></h2>
         <nav>
           <ul>
-            <li class="active">Kanban</li>
+            <li class="active">Quadro Kanban</li>
             <li>Relatórios</li>
             <li>Configurações</li>
           </ul>
         </nav>
-        <div class="status-seguranca">
-          <p>Status: <span id="cameraStatus">Ativo</span></p>
-          <div class="camera-preview">
-            <div id="videoPlaceholder">Câmera Off</div>
+
+        <div
+          class="status-seguranca"
+          style="
+            margin-top: auto;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+          "
+        >
+          <p
+            style="
+              font-size: 12px;
+              color: #86868b;
+              margin-bottom: 10px;
+              font-weight: 600;
+              text-transform: uppercase;
+            "
+          >
+            Câmera
+          </p>
+          <div
+            id="cameraStatus"
+            class="camera-preview"
+            style="
+              background: #000;
+              border-radius: 12px;
+              height: 150px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              cursor: pointer;
+              border: 1px solid var(--primary);
+              transition: 0.3s;
+            "
+            onclick="KanbanApp.ligarCameraOpenCV()"
+          >
+            <div
+              id="videoPlaceholder"
+              style="color: var(--primary); font-size: 24px; margin-bottom: 8px"
+            >
+              📷
+            </div>
+            <span
+              id="labelCamera"
+              style="
+                font-size: 12px;
+                color: var(--primary);
+                font-weight: 700;
+                text-align: center;
+                padding: 0 10px;
+              "
+              >LIGAR MONITORAMENTO</span
+            >
           </div>
         </div>
       </aside>
@@ -52,26 +102,43 @@
         </section>
       </main>
     </div>
-    <script src="dashboard.js"></script>
+
     <div id="modalTarefa" class="modal">
       <div class="modal-content">
         <span class="close" onclick="fecharModal()">&times;</span>
-        <h2>Cadastrar Nova Tarefa</h2>
+        <h2 style="margin-bottom: 20px">Nova Tarefa</h2>
         <form id="formTarefa">
+          <label>TÍTULO</label>
           <input
             type="text"
             id="tituloTarefa"
-            placeholder="Título da Tarefa"
+            placeholder="Ex: Estudar Redes na UFRPE"
             required
           />
+
+          <label style="margin-top: 20px; display: block">DESCRIÇÃO</label>
           <textarea
             id="descTarefa"
-            placeholder="Descrição detalhada"
             rows="4"
+            placeholder="Detalhes da atividade..."
           ></textarea>
-          <button type="submit" class="btn-salvar">Salvar Tarefa</button>
+
+          <button type="submit">Salvar Tarefa</button>
         </form>
       </div>
     </div>
+
+    <div id="modalDetalhes" class="modal">
+      <div class="modal-content">
+        <span class="close" onclick="fecharModalDetalhes()">&times;</span>
+        <h2 id="detalheTitulo" style="color: #1a73e8; margin-bottom: 15px"></h2>
+        <hr
+          style="border: 0; border-top: 1px solid #d2d2d7; margin-bottom: 20px"
+        />
+        <p id="detalheDesc" style="color: #515154; line-height: 1.6"></p>
+      </div>
+    </div>
+
+    <script src="dashboard.js"></script>
   </body>
 </html>

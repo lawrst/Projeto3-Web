@@ -1,83 +1,194 @@
-try {
-  const usuarioSalvo = localStorage.getItem("usuario");
-  const usuario = usuarioSalvo
-    ? JSON.parse(usuarioSalvo)
-    : { nome: "Lawrence", id: "1" };
-  const msgElement = document.getElementById("welcomeMsg");
-  if (msgElement) msgElement.innerText = `Olá, ${usuario.nome}`;
-} catch (e) {
-  console.error("Erro ao carregar usuário:", e);
+const API_URL = "http://127.0.0.1:8000";
+
+if (!localStorage.getItem("usuario_id")) {
+  window.location.href = "../Login/index.html";
 }
 
-const tarefasMock = [
-  { _id: "1", titulo: "Configurar OpenCV", status: "A Fazer" },
-  { _id: "2", titulo: "Setup do Banco de Dados", status: "Fazendo" },
-  { _id: "3", titulo: "Criar Tela de Login", status: "Concluído" },
-];
+const KanbanApp = {
+  init() {
+    this.cacheSelectors();
+    this.bindEvents();
+    this.loadTasks();
+  },
 
-function renderizarTarefas(lista) {
-  const todo = document.getElementById("list-todo");
-  const doing = document.getElementById("list-doing");
-  const done = document.getElementById("list-done");
+  cacheSelectors() {
+    this.form = document.getElementById("formTarefa");
+    this.modal = document.getElementById("modalTarefa");
+    this.modalDetalhes = document.getElementById("modalDetalhes");
+    this.columns = document.querySelectorAll(".column");
+    this.logoutBtn = document.getElementById("logoutBtn");
+  },
 
-  if (!todo || !doing || !done) return;
+  bindEvents() {
+    if (this.form)
+      this.form.addEventListener("submit", (e) => this.handleFormSubmit(e));
 
-  todo.innerHTML = "";
-  doing.innerHTML = "";
-  done.innerHTML = "";
+    if (this.logoutBtn)
+      this.logoutBtn.addEventListener("click", () => this.handleLogout());
 
-  lista.forEach((t) => {
-    const card = `<div class="task-card"><h4>${t.titulo}</h4><small>ID: ${t._id}</small></div>`;
-    if (t.status === "A Fazer") todo.innerHTML += card;
-    else if (t.status === "Fazendo") doing.innerHTML += card;
-    else if (t.status === "Concluído") done.innerHTML += card;
-  });
-}
-
-window.abrirModal = function () {
-  const m = document.getElementById("modalTarefa");
-  if (m) m.style.display = "block";
-};
-
-window.fecharModal = function () {
-  const m = document.getElementById("modalTarefa");
-  if (m) m.style.display = "none";
-};
-
-window.onclick = function (event) {
-  const m = document.getElementById("modalTarefa");
-  if (event.target == m) {
-    fecharModal();
-  }
-};
-
-document.addEventListener("DOMContentLoaded", () => {
-  renderizarTarefas(tarefasMock);
-
-  const statusCamera = document.getElementById("cameraStatus");
-  const previewBox = document.getElementById("videoPlaceholder");
-
-  if (statusCamera && previewBox) {
-    statusCamera.innerText = "OFF";
-    statusCamera.style.color = "#28a745";
-    previewBox.innerHTML = "<p style='color: #28a745; font-weight: bold;'></p>";
-  }
-
-  const form = document.getElementById("formTarefa");
-  if (form) {
-    form.addEventListener("submit", function (e) {
-      e.preventDefault();
-      alert("Tarefa capturada com sucesso!");
-      fecharModal();
-      this.reset();
+    this.columns.forEach((column) => {
+      column.addEventListener("dragover", (e) => e.preventDefault());
+      column.addEventListener("drop", (e) => this.handleDrop(e));
     });
-  }
 
-  const btnSair = document.getElementById("logoutBtn");
-  if (btnSair) {
-    btnSair.addEventListener("click", () => {
-      localStorage.removeItem("usuario");
-      window.location.href = "../Login/index.html";
+    window.addEventListener("click", (e) => {
+      if (e.target === this.modal) {
+        this.toggleModal(false);
+      }
+      if (e.target === this.modalDetalhes) {
+        this.toggleModalDetalhes(false);
+      }
     });
-  }
-});
+  },
+
+  async loadTasks() {
+    const usuarioId = localStorage.getItem("usuario_id");
+    try {
+      const response = await fetch(`${API_URL}/tarefas/${usuarioId}`);
+      if (response.ok) {
+        const tarefas = await response.json();
+        this.renderTasks(tarefas);
+      }
+    } catch (error) {
+      console.error("Erro ao carregar tarefas:", error);
+    }
+  },
+
+  renderTasks(lista) {
+    const containers = {
+      "A Fazer": document.getElementById("list-todo"),
+      Fazendo: document.getElementById("list-doing"),
+      Concluído: document.getElementById("list-done"),
+    };
+
+    Object.values(containers).forEach((c) => {
+      if (c) c.innerHTML = "";
+    });
+
+    lista.forEach((t) => {
+      const card = document.createElement("div");
+      card.className = "task-card";
+      card.draggable = true;
+      card.id = t._id;
+
+      card.onclick = (e) => {
+        if (e.target.tagName !== "BUTTON") {
+          this.showTaskDetails(t.titulo, t.descricao);
+        }
+      };
+
+      card.addEventListener("dragstart", (e) => {
+        e.dataTransfer.setData("text/plain", e.target.id);
+        e.target.style.opacity = "0.5";
+      });
+
+      card.addEventListener("dragend", (e) => {
+        e.target.style.opacity = "1";
+      });
+
+      card.innerHTML = `
+                <h4 style="margin: 0; pointer-events: none;">${t.titulo}</h4>
+                <button onclick="KanbanApp.deleteTask('${t._id}')" style="float:right; border:none; background:none; cursor:pointer;">🗑️</button>
+            `;
+
+      const target = containers[t.status];
+      if (target) target.appendChild(card);
+    });
+  },
+
+  showTaskDetails(titulo, descricao) {
+    document.getElementById("detalheTitulo").innerText = titulo;
+    document.getElementById("detalheDesc").innerText =
+      descricao || "Sem descrição disponível.";
+    this.toggleModalDetalhes(true);
+  },
+
+  async handleFormSubmit(e) {
+    e.preventDefault();
+    const payload = {
+      titulo: document.getElementById("tituloTarefa").value,
+      descricao: document.getElementById("descTarefa").value,
+      status: "A Fazer",
+      usuario_id: localStorage.getItem("usuario_id"),
+    };
+
+    try {
+      const response = await fetch(`${API_URL}/tarefas`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        this.toggleModal(false);
+        this.form.reset();
+        this.loadTasks();
+      }
+    } catch (error) {
+      console.error("Erro ao salvar tarefa:", error);
+    }
+  },
+
+  async handleDrop(e) {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData("text/plain");
+    const column = e.target.closest(".column");
+
+    if (!column || !taskId) return;
+
+    const statusMap = {
+      "to-do": "A Fazer",
+      doing: "Fazendo",
+      done: "Concluído",
+    };
+
+    const novoStatus = statusMap[column.id];
+    await this.moveTask(taskId, novoStatus);
+  },
+
+  async moveTask(id, novoStatus) {
+    try {
+      const response = await fetch(`${API_URL}/tarefas/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: novoStatus }),
+      });
+      if (response.ok) this.loadTasks();
+    } catch (error) {
+      console.error("Erro ao atualizar status:", error);
+    }
+  },
+
+  async deleteTask(id) {
+    if (!confirm("Excluir atividade?")) return;
+    try {
+      const response = await fetch(`${API_URL}/tarefas/${id}`, {
+        method: "DELETE",
+      });
+      if (response.ok) this.loadTasks();
+    } catch (error) {
+      console.error("Erro ao deletar:", error);
+    }
+  },
+
+  toggleModal(show) {
+    if (this.modal) this.modal.style.display = show ? "block" : "none";
+  },
+
+  toggleModalDetalhes(show) {
+    if (this.modalDetalhes)
+      this.modalDetalhes.style.display = show ? "block" : "none";
+  },
+
+  handleLogout() {
+    localStorage.clear();
+    window.location.href = "../Login/index.html";
+  },
+};
+
+window.abrirModal = () => KanbanApp.toggleModal(true);
+window.fecharModal = () => KanbanApp.toggleModal(false);
+window.fecharModalDetalhes = () => KanbanApp.toggleModalDetalhes(false);
+window.KanbanApp = KanbanApp;
+
+document.addEventListener("DOMContentLoaded", () => KanbanApp.init());

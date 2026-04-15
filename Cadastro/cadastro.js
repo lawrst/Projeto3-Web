@@ -1,5 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("cadastroForm");
+  const messageDiv = document.getElementById("message");
 
   if (form) {
     form.addEventListener("submit", async (event) => {
@@ -12,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
       };
 
       try {
-        const response = await fetch("http://localhost:8000/cadastro", {
+        const response = await fetch("http://127.0.0.1:8000/cadastro", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(dados),
@@ -24,13 +25,15 @@ document.addEventListener("DOMContentLoaded", () => {
           alert("Cadastro realizado com sucesso!");
           window.location.href = "../Login/index.html";
         } else {
-          alert(
-            "Erro no cadastro: " + (resultado.detail || "Verifique os dados"),
-          );
+          if (messageDiv) {
+            messageDiv.innerText =
+              "Erro: " + (resultado.detail || "Verifique os dados.");
+            messageDiv.style.color = "#ff4d4d";
+          }
         }
       } catch (error) {
         console.error("Erro na conexão:", error);
-        alert("Não foi possível conectar ao servidor.");
+        alert("Não foi possível conectar ao servidor da API.");
       }
     });
   }
