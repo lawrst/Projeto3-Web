@@ -39,21 +39,22 @@ const LoginApp = {
       } else {
         this.showMessage(
           resultado.detail || "E-mail ou senha incorretos.",
-          "red",
+          "#ff4d4d",
         );
       }
     } catch (error) {
       console.error("Erro na conexão:", error);
-      this.showMessage("Não foi possível conectar ao servidor.", "red");
+      this.showMessage("Não foi possível conectar ao servidor.", "#ff4d4d");
     }
   },
 
   handleSuccess(data) {
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("usuario_nome", data.usuario);
+
+    localStorage.setItem("usuario_id", "autenticado");
+
     alert("Login realizado com sucesso!");
-
-    localStorage.setItem("usuario_id", data.usuario.id);
-    localStorage.setItem("usuario_nome", data.usuario.nome);
-
     window.location.href = "../Dashboard/dashboard.html";
   },
 
