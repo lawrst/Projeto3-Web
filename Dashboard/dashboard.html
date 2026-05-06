@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Inspectra - Dashboard</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
     <link rel="stylesheet" href="dashboard.css" />
   </head>
   <body>
@@ -12,8 +17,16 @@
         <h2><span>Inspectra</span></h2>
         <nav>
           <ul>
-            <li class="active">Quadro Kanban</li>
-            <li>Relatórios</li>
+            <li
+              id="menu-kanban"
+              class="active"
+              onclick="KanbanApp.trocarTela('kanban')"
+            >
+              Quadro Kanban
+            </li>
+            <li id="menu-relatorio" onclick="KanbanApp.trocarTela('relatorio')">
+              Relatórios
+            </li>
             <li>Configurações</li>
           </ul>
         </nav>
@@ -95,7 +108,7 @@
           <button id="logoutBtn">Sair</button>
         </header>
 
-        <section class="kanban">
+        <section id="secaoKanban" class="kanban" style="display: grid">
           <div class="column" id="to-do">
             <h3>A Fazer</h3>
             <div class="task-list" id="list-todo"></div>
@@ -111,6 +124,22 @@
             <h3>Concluído</h3>
             <div class="task-list" id="list-done"></div>
           </div>
+        </section>
+
+        <section id="secaoRelatorio" style="display: none; padding: 20px">
+          <h2 style="margin-bottom: 20px; color: #1a73e8">
+            Calendário de Relatórios
+          </h2>
+          <div
+            id="calendar"
+            style="
+              width: 100%;
+              background: white;
+              padding: 20px;
+              border-radius: 8px;
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            "
+          ></div>
         </section>
       </main>
     </div>
@@ -155,6 +184,87 @@
           <textarea id="descTarefa" rows="4"></textarea>
           <button type="submit">Criar Tarefa</button>
         </form>
+      </div>
+    </div>
+
+    <div id="modalNovoRelatorio" class="modal">
+      <div class="modal-content">
+        <span class="close" onclick="fecharModalNovoRelatorio()">&times;</span>
+        <h2 style="color: #1a73e8; margin-bottom: 10px">Criar Relatório</h2>
+        <p
+          id="dataEscolhidaRelatorio"
+          style="font-weight: 600; color: #555; margin-bottom: 15px"
+        ></p>
+        <form id="formNovoRelatorio">
+          <input type="hidden" id="dataOcultaRelatorio" />
+          <label>Título do Relatório</label>
+          <input
+            type="text"
+            id="tituloRelatorio"
+            required
+            style="width: 100%; margin-bottom: 15px"
+          />
+          <label>Descrição</label>
+          <textarea
+            id="descRelatorio"
+            rows="5"
+            style="width: 100%; margin-bottom: 20px"
+          ></textarea>
+          <button
+            type="submit"
+            style="background-color: #1a73e8; color: white; width: 100%"
+          >
+            Salvar no Calendário
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div id="modalVerRelatorio" class="modal">
+      <div class="modal-content">
+        <span class="close" onclick="fecharModalVerRelatorio()">&times;</span>
+        <h2 style="color: #1a73e8; margin-bottom: 10px">
+          Detalhes do Relatório
+        </h2>
+        <p
+          id="verDataRelatorio"
+          style="font-weight: 600; color: #555; margin-bottom: 15px"
+        ></p>
+
+        <input type="hidden" id="idOcultoRelatorio" />
+        <input type="hidden" id="dataOcultaEdicaoRelatorio" />
+
+        <label>Título</label>
+        <input
+          type="text"
+          id="editTituloRelatorio"
+          required
+          style="width: 100%; margin-bottom: 15px"
+        />
+
+        <label>Descrição</label>
+        <textarea
+          id="editDescRelatorio"
+          rows="5"
+          style="width: 100%; margin-bottom: 20px"
+        ></textarea>
+
+        <div style="display: flex; gap: 10px">
+          <button
+            type="button"
+            onclick="KanbanApp.editarRelatorio()"
+            style="background-color: #28a745; color: white; width: 100%"
+          >
+            Salvar Edição
+          </button>
+          <button
+            type="button"
+            onclick="KanbanApp.excluirRelatorio()"
+            style="background-color: #dc3545; color: white; width: 100%"
+          >
+            Excluir
+          </button>
+        </div>
       </div>
     </div>
 

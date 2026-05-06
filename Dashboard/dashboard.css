@@ -242,4 +242,63 @@ button[type="submit"] {
   font-weight: 700;
   margin-top: 20px;
   cursor: pointer;
+
+  .sidebar ul li.active {
+    background-color: #1a73e8; /* Cor azul */
+    color: white;
+  }
+
+  #historicoRelatorios button:hover {
+    background-color: #f0f0f0 !important;
+  }
+
+  #calendar {
+    height: 600px;
+    width: 100%;
+  }
+  /* Isso força o calendário a ocupar o espaço da section */
+  #calendar {
+    width: 100% !important;
+    height: 600px !important;
+    background: #ffffff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Garante que o Kanban volte a ficar bonito quando ativado */
+  #secaoKanban {
+    display: flex;
+    width: 100%;
+    gap: 20px;
+  }
+
+  .main-content {
+    width: 100%;
+    padding: 20px;
+  }
+
+  #calendar {
+    width: 100% !important;
+    height: 600px !important;
+    background: #ffffff !important;
+    border: 1px solid #ddd;
+  }
+  #secaoKanban {
+    width: 100%;
+    gap: 20px;
+  }
+
+  #calendar {
+    width: 100% !important;
+    height: 600px !important;
+    background: #ffffff !important;
+    border: 1px solid #ddd;
+    margin-top: 20px;
+  }
+  /* Adicione esta linha para garantir que o Kanban não fique espremido */
+  #secaoKanban {
+    width: 100%;
+    gap: 20px;
+  }
 }

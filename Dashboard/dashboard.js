@@ -1,24 +1,35 @@
 const API_URL = "http://127.0.0.1:8000";
 const token = localStorage.getItem("token");
 
-// Bloqueio de acesso: Se não houver token, volta para o Login
 if (!token) {
   window.location.href = "../Login/index.html";
 }
 
 const KanbanApp = {
+  meuCalendario: null,
+
   init() {
     this.cacheSelectors();
     this.bindEvents();
     this.loadTasks();
-    this.conectarSocketSistema();
+    // this.conectarSocketSistema();
+
+    const nomeUsuario = localStorage.getItem("usuario_nome");
+    if (nomeUsuario) {
+      document.getElementById("welcomeMsg").innerText = `Olá, ${nomeUsuario}!`;
+    }
   },
 
   cacheSelectors() {
     this.form = document.getElementById("formTarefa");
     this.formEditar = document.getElementById("formEditar");
+    this.formNovoRelatorio = document.getElementById("formNovoRelatorio");
+
     this.modal = document.getElementById("modalTarefa");
     this.modalDetalhes = document.getElementById("modalDetalhes");
+    this.modalNovoRelatorio = document.getElementById("modalNovoRelatorio");
+    this.modalVerRelatorio = document.getElementById("modalVerRelatorio");
+
     this.columns = document.querySelectorAll(".column");
     this.labelCamera = document.getElementById("labelCamera");
     this.cameraVisor = document.getElementById("cameraStatus");
@@ -28,6 +39,8 @@ const KanbanApp = {
     if (this.form) this.form.onsubmit = (e) => this.handleFormSubmit(e);
     if (this.formEditar)
       this.formEditar.onsubmit = (e) => this.handleEditSubmit(e);
+    if (this.formNovoRelatorio)
+      this.formNovoRelatorio.onsubmit = (e) => this.handleRelatorioSubmit(e);
 
     document.getElementById("logoutBtn").onclick = () => {
       localStorage.clear();
@@ -42,44 +55,235 @@ const KanbanApp = {
     window.onclick = (e) => {
       if (e.target === this.modal) this.toggleModal(false);
       if (e.target === this.modalDetalhes) this.toggleModalDetalhes(false);
+      if (e.target === this.modalNovoRelatorio)
+        this.modalNovoRelatorio.style.display = "none";
+      if (e.target === this.modalVerRelatorio)
+        this.modalVerRelatorio.style.display = "none";
     };
   },
 
-  conectarSocketSistema() {
-    const nomeFake = "Monitor_" + Math.floor(Math.random() * 1000);
-    const socket = new WebSocket(`ws://127.0.0.1:8000/ws/chat/${nomeFake}`);
+  // === LÓGICA DE TROCA DE TELA ===
+  trocarTela(tela) {
+    document.getElementById("menu-kanban").classList.remove("active");
+    document.getElementById("menu-relatorio").classList.remove("active");
+    document.getElementById("secaoKanban").style.display = "none";
+    document.getElementById("secaoRelatorio").style.display = "none";
 
-    socket.onmessage = (event) => {
-      if (event.data.includes("SISTEMA_CAMERA: INICIAR_MONITORAMENTO")) {
-        this.ativarAlertaVisualCamera();
+    if (tela === "kanban") {
+      document.getElementById("menu-kanban").classList.add("active");
+      document.getElementById("secaoKanban").style.display = "grid";
+      this.loadTasks(); // Recarrega Kanban
+    } else if (tela === "relatorio") {
+      document.getElementById("menu-relatorio").classList.add("active");
+      document.getElementById("secaoRelatorio").style.display = "block";
+
+      // Inicia o calendário só quando a aba for clicada
+      if (!this.meuCalendario) {
+        this.iniciarCalendario();
+      } else {
+        // Se já existe, força ele a arrumar o tamanho e buscar dados
+        setTimeout(() => {
+          this.meuCalendario.updateSize();
+          this.meuCalendario.refetchEvents();
+        }, 100);
       }
+    }
+  },
+
+  // === LÓGICA DO CALENDÁRIO DE RELATÓRIOS ===
+  iniciarCalendario() {
+    const calendarEl = document.getElementById("calendar");
+
+    this.meuCalendario = new FullCalendar.Calendar(calendarEl, {
+      initialView: "dayGridMonth",
+      locale: "pt-br",
+      height: 600,
+      headerToolbar: {
+        left: "prev,next today",
+        center: "title",
+        right: "",
+      },
+
+      // Busca dados na API e filtra só os relatórios
+      events: async (info, successCallback, failureCallback) => {
+        try {
+          const resp = await fetch(`${API_URL}/tarefas`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const todasAsTarefas = await resp.json();
+
+          // Filtra tarefas salvas com status "Relatorio"
+          const relatorios = todasAsTarefas.filter(
+            (t) => t.status === "Relatorio",
+          );
+
+          const eventosFormatados = relatorios.map((t) => {
+            const partes = t.titulo.split(" | "); // Separa a data do título
+            return {
+              id: t._id,
+              title: partes.length > 1 ? partes[1] : t.titulo,
+              start: partes[0], // A data oculta
+              color: "#34a853",
+              extendedProps: { descricao: t.descricao },
+            };
+          });
+          successCallback(eventosFormatados);
+        } catch (error) {
+          failureCallback(error);
+        }
+      },
+
+      // Clica num dia vazio -> Abre Modal Criar
+      dateClick: (info) => {
+        document.getElementById("dataOcultaRelatorio").value = info.dateStr;
+
+        const dataFormatada = new Date(
+          info.dateStr + "T12:00:00",
+        ).toLocaleDateString("pt-BR");
+        document.getElementById("dataEscolhidaRelatorio").innerText =
+          "Data: " + dataFormatada;
+
+        document.getElementById("tituloRelatorio").value = "";
+        document.getElementById("descRelatorio").value = "";
+
+        this.modalNovoRelatorio.style.display = "block";
+      },
+
+      // Clica num evento -> Abre Modal Ver/Excluir
+      // Clica num evento -> Abre Modal para Editar/Excluir
+      eventClick: (info) => {
+        document.getElementById("idOcultoRelatorio").value = info.event.id;
+
+        // SALVA A DATA ESCONDIDA: Fundamental para não perdermos a data ao editar o título
+        document.getElementById("dataOcultaEdicaoRelatorio").value =
+          info.event.startStr;
+
+        // Preenche as caixinhas de texto com o que já estava escrito
+        document.getElementById("editTituloRelatorio").value = info.event.title;
+        document.getElementById("editDescRelatorio").value =
+          info.event.extendedProps.descricao || "";
+
+        const dataFormatada = new Date(
+          info.event.startStr + "T12:00:00",
+        ).toLocaleDateString("pt-BR");
+        document.getElementById("verDataRelatorio").innerText =
+          "Data: " + dataFormatada;
+
+        this.modalVerRelatorio.style.display = "block";
+      },
+    });
+
+    this.meuCalendario.render();
+    setTimeout(() => this.meuCalendario.updateSize(), 200);
+  },
+
+  // POST: Salvar Relatório
+  async handleRelatorioSubmit(e) {
+    e.preventDefault();
+    const tituloNormal = document.getElementById("tituloRelatorio").value;
+    const desc = document.getElementById("descRelatorio").value;
+    const dataOculta = document.getElementById("dataOcultaRelatorio").value;
+
+    const tituloComData = `${dataOculta} | ${tituloNormal}`;
+
+    const payload = {
+      titulo: tituloComData,
+      descricao: desc,
+      status: "Relatorio", // Isola do Kanban
+      usuario_id: "auth",
     };
 
-    socket.onclose = () => setTimeout(() => this.conectarSocketSistema(), 5000);
+    const resp = await fetch(`${API_URL}/tarefas`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (resp.ok) {
+      this.modalNovoRelatorio.style.display = "none";
+      if (this.meuCalendario) this.meuCalendario.refetchEvents();
+      this.showToast("Relatório salvo no calendário!");
+    }
   },
 
-  ativarAlertaVisualCamera() {
-    this.showToast("📷 MONITORAMENTO ATIVADO: Sistema de hardware detectado!");
-
-    if (this.labelCamera) {
-      this.labelCamera.innerText = "MONITORAMENTO ATIVO";
-      this.labelCamera.style.color = "#28a745";
-    }
-    if (this.cameraVisor) {
-      this.cameraVisor.style.borderColor = "#28a745";
-      this.cameraVisor.style.boxShadow = "0 0 15px rgba(40, 167, 69, 0.4)";
+  // DELETE: Excluir Relatório
+  async excluirRelatorio() {
+    const id = document.getElementById("idOcultoRelatorio").value;
+    if (confirm("Deseja excluir este relatório?")) {
+      const resp = await fetch(`${API_URL}/tarefas/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (resp.ok) {
+        this.modalVerRelatorio.style.display = "none";
+        if (this.meuCalendario) this.meuCalendario.refetchEvents();
+        this.showToast("Relatório excluído!");
+      }
     }
   },
 
-  // GET /tarefas
+  // PUT: Editar Relatório
+  async editarRelatorio() {
+    const id = document.getElementById("idOcultoRelatorio").value;
+    const tituloEditado = document
+      .getElementById("editTituloRelatorio")
+      .value.trim();
+    const descEditada = document
+      .getElementById("editDescRelatorio")
+      .value.trim();
+
+    // Pega a data escondida que salvamos no clique
+    const dataOculta = document.getElementById(
+      "dataOcultaEdicaoRelatorio",
+    ).value;
+
+    if (!tituloEditado) return this.showToast("O título não pode ficar vazio!");
+
+    // TRUQUE: Remonta o título junto com a data antes de mandar pra API
+    const tituloComData = `${dataOculta} | ${tituloEditado}`;
+
+    const payload = {
+      titulo: tituloComData,
+      descricao: descEditada,
+    };
+
+    try {
+      const resp = await fetch(`${API_URL}/tarefas/editar-texto/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (resp.ok) {
+        this.modalVerRelatorio.style.display = "none";
+        if (this.meuCalendario) this.meuCalendario.refetchEvents();
+        this.showToast("Relatório editado com sucesso!");
+      } else {
+        this.showToast("Erro ao editar o relatório.");
+      }
+    } catch (err) {
+      this.showToast("Erro de conexão.");
+    }
+  },
+
+  // === LÓGICA DO KANBAN ORIGINAL ===
+
   async loadTasks() {
     try {
       const resp = await fetch(`${API_URL}/tarefas`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (resp.ok) {
-        const tarefas = await resp.json();
-        this.renderTasks(tarefas);
+        const todas = await resp.json();
+        // IMPORTANTE: O Kanban só mostra o que não é relatório
+        const tarefasKanban = todas.filter((t) => t.status !== "Relatorio");
+        this.renderTasks(tarefasKanban);
       }
     } catch (error) {
       console.error("Erro ao carregar:", error);
@@ -128,7 +332,6 @@ const KanbanApp = {
     this.toggleModalDetalhes(true);
   },
 
-  // PUT /tarefas/editar-texto/{id}
   async handleEditSubmit(e) {
     e.preventDefault();
     const id = document.getElementById("editId").value;
@@ -152,7 +355,6 @@ const KanbanApp = {
     }
   },
 
-  // PUT /tarefas/{id}
   async handleDrop(e) {
     e.preventDefault();
     const id = e.dataTransfer.getData("text");
@@ -177,7 +379,6 @@ const KanbanApp = {
     this.loadTasks();
   },
 
-  // POST /tarefas
   async handleFormSubmit(e) {
     e.preventDefault();
     const payload = {
@@ -201,7 +402,6 @@ const KanbanApp = {
     }
   },
 
-  // DELETE /tarefas/{id}
   async deleteTask(id) {
     if (confirm("Excluir esta tarefa?")) {
       await fetch(`${API_URL}/tarefas/${id}`, {
@@ -209,6 +409,28 @@ const KanbanApp = {
         headers: { Authorization: `Bearer ${token}` },
       });
       this.loadTasks();
+    }
+  },
+
+  // === SOCKET E EXTRAS ===
+
+  conectarSocketSistema() {
+    const nomeFake = "Monitor_" + Math.floor(Math.random() * 1000);
+    const socket = new WebSocket(`ws://127.0.0.1:8000/ws/chat/${nomeFake}`);
+
+    socket.onmessage = (event) => {
+      if (event.data.includes("SISTEMA_CAMERA: INICIAR_MONITORAMENTO")) {
+        this.ativarAlertaVisualCamera();
+      }
+    };
+    socket.onclose = () => setTimeout(() => this.conectarSocketSistema(), 5000);
+  },
+
+  ativarAlertaVisualCamera() {
+    this.showToast("📷 MONITORAMENTO ATIVADO: Sistema detectado!");
+    if (this.labelCamera) {
+      this.labelCamera.innerText = "MONITORAMENTO ATIVO";
+      this.labelCamera.style.color = "#28a745";
     }
   },
 
@@ -226,7 +448,7 @@ const KanbanApp = {
     setTimeout(() => {
       toast.style.opacity = "0";
       setTimeout(() => toast.remove(), 500);
-    }, 5000);
+    }, 3000);
   },
 
   toggleModal(s) {
@@ -237,9 +459,14 @@ const KanbanApp = {
   },
 };
 
+// Funções globais para os botões do HTML
 window.abrirModal = () => KanbanApp.toggleModal(true);
 window.fecharModal = () => KanbanApp.toggleModal(false);
 window.fecharModalDetalhes = () => KanbanApp.toggleModalDetalhes(false);
+window.fecharModalNovoRelatorio = () =>
+  (document.getElementById("modalNovoRelatorio").style.display = "none");
+window.fecharModalVerRelatorio = () =>
+  (document.getElementById("modalVerRelatorio").style.display = "none");
 window.KanbanApp = KanbanApp;
 
 document.addEventListener("DOMContentLoaded", () => KanbanApp.init());
