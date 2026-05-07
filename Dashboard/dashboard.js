@@ -1,4 +1,5 @@
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = window.APP_CONFIG?.API_URL || "http://127.0.0.1:8000";
+const WS_URL = window.APP_CONFIG?.WS_URL || API_URL.replace(/^http/, "ws");
 const token = localStorage.getItem("token");
 
 // Bloqueio de acesso: Se não houver token, volta para o Login
@@ -357,26 +358,68 @@ const KanbanApp = {
         listaDiv.innerHTML = "";
 
         chats.forEach((chat) => {
-          const btn = document.createElement("button");
-          btn.innerText = chat.nome_chat;
-          btn.style.cssText =
-            "width: 100%; padding: 12px; margin-bottom: 8px; background: #f0f0f0; border: none; border-radius: 6px; text-align: left; cursor: pointer; transition: 0.2s;";
+          // Cria um container para colocar o nome do chat e a lixeira lado a lado
+          const divContainer = document.createElement("div");
+          divContainer.style.cssText =
+            "display: flex; gap: 5px; margin-bottom: 8px;";
 
-          btn.onmouseover = () => (btn.style.background = "#e0e0e0");
-          btn.onmouseout = () => (btn.style.background = "#f0f0f0");
-
-          btn.onclick = () =>
+          const btnChat = document.createElement("button");
+          btnChat.innerText = chat.nome_chat;
+          btnChat.style.cssText =
+            "flex: 1; padding: 12px; background: #f0f0f0; border: none; border-radius: 6px; text-align: left; cursor: pointer; transition: 0.2s;";
+          btnChat.onclick = () =>
             this.abrirSalaDeChat(chat.id_chat, chat.nome_chat);
 
-          listaDiv.appendChild(btn);
+          const btnExcluir = document.createElement("button");
+          btnExcluir.innerText = "🗑️";
+          btnExcluir.title = "Excluir Chat (Apenas Admin)";
+          btnExcluir.style.cssText =
+            "padding: 10px; background: #ffebee; border: none; border-radius: 6px; cursor: pointer; color: red;";
+          btnExcluir.onclick = () => this.excluirChat(chat.id_chat);
+
+          divContainer.appendChild(btnChat);
+          divContainer.appendChild(btnExcluir);
+          listaDiv.appendChild(divContainer);
         });
-      } else {
-        listaDiv.innerHTML =
-          '<p style="color: red; font-size: 14px;">Erro ao carregar chats.</p>';
       }
     } catch (err) {
       console.error(err);
     }
+  },
+
+  async excluirChat(chatId) {
+    // Usa a caixinha de confirmação bonita que fizemos antes
+    this.pedirConfirmacao(
+      "Excluir este chat e todas as mensagens? (Apenas Admins)",
+      async () => {
+        try {
+          const resp = await fetch(`${API_URL}/chats/${chatId}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          if (resp.ok) {
+            this.showToast("Chat excluído com sucesso!");
+            this.carregarListaDeChats(); // Recarrega a lista
+
+            // Limpa a tela se o chat excluído era o que estava aberto
+            if (document.getElementById("chatIdAtivo").value === chatId) {
+              document.getElementById("caixaDeMensagens").innerHTML = "";
+              document.getElementById("cabecalhoChatAtual").innerText =
+                "Selecione um chat para iniciar";
+              document.getElementById("inputNovaMensagem").disabled = true;
+              document.getElementById("btnEnviarMensagem").disabled = true;
+              if (this.socketChatAtivo) this.socketChatAtivo.close();
+            }
+          } else {
+            const erro = await resp.json();
+            this.showToast(erro.detail || "Erro ao excluir chat.");
+          }
+        } catch (err) {
+          this.showToast("Erro de conexão.");
+        }
+      },
+    );
   },
 
   async abrirModalNovoChat() {
@@ -487,7 +530,7 @@ const KanbanApp = {
     }
 
     this.socketChatAtivo = new WebSocket(
-      `ws://127.0.0.1:8000/ws/chat/${chatId}?token=${token}`,
+      `${WS_URL}/ws/chat/${chatId}?token=${token}`,
     );
 
     this.socketChatAtivo.onmessage = (event) => {
@@ -526,14 +569,41 @@ const KanbanApp = {
     caixa.scrollTop = caixa.scrollHeight;
   },
 
-  enviarMensagemChat() {
+  async enviarMensagemChat() {
     const input = document.getElementById("inputNovaMensagem");
     const texto = input.value.trim();
+    const chatId = document.getElementById("chatIdAtivo").value;
 
-    if (!texto || !this.socketChatAtivo) return;
+    if (!texto || !chatId) return;
 
-    this.socketChatAtivo.send(texto);
-    input.value = "";
+    // Desativa o botão rapidamente para não enviar duplicado
+    input.disabled = true;
+
+    try {
+      // USANDO A ROTA OFICIAL DA API PARA SALVAR E DISTRIBUIR A MENSAGEM
+      const resp = await fetch(`${API_URL}/chat/mensagens`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          chat_id: chatId,
+          mensagem: texto,
+        }),
+      });
+
+      if (resp.ok) {
+        input.value = ""; // Limpa a caixinha só se a API confirmar
+      } else {
+        this.showToast("Erro ao enviar mensagem.");
+      }
+    } catch (err) {
+      this.showToast("Erro de conexão.");
+    } finally {
+      input.disabled = false;
+      input.focus();
+    }
   },
 
   // ==========================================
@@ -688,7 +758,7 @@ const KanbanApp = {
 
   conectarSocketSistema() {
     const nomeFake = "Monitor_" + Math.floor(Math.random() * 1000);
-    const socket = new WebSocket(`ws://127.0.0.1:8000/ws/chat/${nomeFake}`);
+    const socket = new WebSocket(`${WS_URL}/ws/chat/${nomeFake}`);
 
     socket.onmessage = (event) => {
       if (event.data.includes("SISTEMA_CAMERA: INICIAR_MONITORAMENTO")) {
