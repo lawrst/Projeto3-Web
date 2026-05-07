@@ -1,4 +1,5 @@
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = window.APP_CONFIG?.API_URL || "http://127.0.0.1:8000";
+const WS_URL = window.APP_CONFIG?.WS_URL || API_URL.replace(/^http/, "ws");
 const token = localStorage.getItem("token");
 
 // Bloqueio de acesso: Se não houver token, volta para o Login
@@ -487,7 +488,7 @@ const KanbanApp = {
     }
 
     this.socketChatAtivo = new WebSocket(
-      `ws://127.0.0.1:8000/ws/chat/${chatId}?token=${token}`,
+      `${WS_URL}/ws/chat/${chatId}?token=${token}`,
     );
 
     this.socketChatAtivo.onmessage = (event) => {
@@ -688,7 +689,7 @@ const KanbanApp = {
 
   conectarSocketSistema() {
     const nomeFake = "Monitor_" + Math.floor(Math.random() * 1000);
-    const socket = new WebSocket(`ws://127.0.0.1:8000/ws/chat/${nomeFake}`);
+    const socket = new WebSocket(`${WS_URL}/ws/chat/${nomeFake}`);
 
     socket.onmessage = (event) => {
       if (event.data.includes("SISTEMA_CAMERA: INICIAR_MONITORAMENTO")) {
