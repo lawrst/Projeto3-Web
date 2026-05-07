@@ -529,10 +529,16 @@ const KanbanApp = {
       this.socketChatAtivo.close();
     }
 
+    // 3. A MÁGICA AQUI: Converte a sua API_URL para um link de WebSocket que funciona online (wss://) ou local (ws://)
+    const wsProtocol = API_URL.startsWith("https") ? "wss://" : "ws://";
+    const wsDomain = API_URL.replace(/^https?:\/\//, ""); // Remove o http ou https do texto
+
+    // Agora o WebSocket se conecta no lugar certo dinamicamente!
     this.socketChatAtivo = new WebSocket(
-      `${WS_URL}/ws/chat/${chatId}?token=${token}`,
+      `${wsProtocol}${wsDomain}/ws/chat/${chatId}?token=${token}`,
     );
 
+    // Fica escutando as mensagens novas chegarem ao vivo
     this.socketChatAtivo.onmessage = (event) => {
       const dados = event.data.split(": ");
       if (dados.length >= 2) {
