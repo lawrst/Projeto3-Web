@@ -506,7 +506,7 @@ const KanbanApp = {
 
     const caixa = document.getElementById("caixaDeMensagens");
     caixa.innerHTML =
-      '<p style="text-align:center; color:#aaa; font-size:12px;">Carregando histórico...</p>';
+      '<p style="text-align:center; color:#aaa; font-size:12px;">A carregar histórico...</p>';
 
     try {
       const resp = await fetch(`${API_URL}/chat/mensagens?chat_id=${chatId}`, {
@@ -522,15 +522,23 @@ const KanbanApp = {
       }
     } catch (err) {
       caixa.innerHTML =
-        '<p style="color:red; text-align:center;">Erro ao puxar histórico.</p>';
+        '<p style="color:red; text-align:center;">Erro ao carregar o histórico.</p>';
     }
 
+    // Chama a função isolada que gere a ligação contínua
+    this.conectarWebSocketChat(chatId);
+  },
+
+  // NOVA FUNÇÃO: Mantém a ligação viva e reconecta se o servidor (Render) a cortar
+  conectarWebSocketChat(chatId) {
     if (this.socketChatAtivo) {
       this.socketChatAtivo.close();
     }
 
+    const wsProtocol = API_URL.startsWith("https") ? "wss://" : "ws://";
+    const wsDomain = API_URL.replace(/^https?:\/\//, "");
     this.socketChatAtivo = new WebSocket(
-      `${WS_URL}/ws/chat/${chatId}?token=${token}`,
+      `${wsProtocol}${wsDomain}/ws/chat/${chatId}?token=${token}`,
     );
 
     this.socketChatAtivo.onmessage = (event) => {
@@ -543,33 +551,21 @@ const KanbanApp = {
         this.renderizarMensagemNaTela("Sistema", event.data);
       }
     };
+
+    // Lógica Anti-Queda: Se o WebSocket fechar, tenta reconectar sozinho após 3 segundos
+    this.socketChatAtivo.onclose = () => {
+      console.log("A ligação do chat caiu. A tentar reconectar...");
+      setTimeout(() => {
+        // Só reconecta se o utilizador ainda estiver com a mesma sala de chat aberta
+        if (document.getElementById("chatIdAtivo").value === chatId) {
+          this.conectarWebSocketChat(chatId);
+        }
+      }, 3000);
+    };
   },
 
-  renderizarMensagemNaTela(autor, texto) {
-    const caixa = document.getElementById("caixaDeMensagens");
-    const meuNome = localStorage.getItem("usuario_nome");
-
-    const divMsg = document.createElement("div");
-
-    if (autor === "Sistema") {
-      divMsg.style.cssText =
-        "text-align: center; color: #888; font-size: 12px; margin: 5px 0;";
-      divMsg.innerText = texto;
-    } else if (autor === meuNome) {
-      divMsg.style.cssText =
-        "align-self: flex-end; background: #d1e7dd; padding: 10px 15px; border-radius: 15px 15px 0 15px; max-width: 70%;";
-      divMsg.innerHTML = `<span style="font-size:11px; color:#555; display:block; margin-bottom:3px;">Você</span>${texto}`;
-    } else {
-      divMsg.style.cssText =
-        "align-self: flex-start; background: white; border: 1px solid #ddd; padding: 10px 15px; border-radius: 15px 15px 15px 0; max-width: 70%;";
-      divMsg.innerHTML = `<span style="font-size:11px; color:#1a73e8; display:block; margin-bottom:3px;">${autor}</span>${texto}`;
-    }
-
-    caixa.appendChild(divMsg);
-    caixa.scrollTop = caixa.scrollHeight;
-  },
-
-  async enviarMensagemChat() {
+  // NOVA VERSÃO: Envia a mensagem pelo próprio WebSocket (Mais rápido e em tempo real)
+  enviarMensagemChat() {
     const input = document.getElementById("inputNovaMensagem");
     const texto = input.value.trim();
     const chatId = document.getElementById("chatIdAtivo").value;
@@ -579,30 +575,15 @@ const KanbanApp = {
     // Desativa o botão rapidamente para não enviar duplicado
     input.disabled = true;
 
-    try {
-      // USANDO A ROTA OFICIAL DA API PARA SALVAR E DISTRIBUIR A MENSAGEM
-      const resp = await fetch(`${API_URL}/chat/mensagens`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          chat_id: chatId,
-          mensagem: texto,
-        }),
-      });
-
-      if (resp.ok) {
-        input.value = ""; // Limpa a caixinha só se a API confirmar
-      } else {
-        this.showToast("Erro ao enviar mensagem.");
-      }
-    } catch (err) {
-      this.showToast("Erro de conexão.");
-    } finally {
-      input.disabled = false;
+    // Verifica se a ligação está aberta (WebSocket.OPEN === 1)
+    if (this.socketChatAtivo.readyState === WebSocket.OPEN) {
+      this.socketChatAtivo.send(texto); // O backend encarrega-se de guardar na base de dados
+      input.value = "";
       input.focus();
+    } else {
+      this.showToast(
+        "⚠️ Reconectando... Aguarde um segundo e tente novamente.",
+      );
     }
   },
 
