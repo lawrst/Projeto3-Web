@@ -1,0 +1,6 @@
+services:
+  - type: static_site
+    name: projeto3-web
+    env: static
+    buildCommand: ""
+    staticPublishPath: .
