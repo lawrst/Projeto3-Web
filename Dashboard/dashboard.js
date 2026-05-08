@@ -568,8 +568,12 @@ const KanbanApp = {
   enviarMensagemChat() {
     const input = document.getElementById("inputNovaMensagem");
     const texto = input.value.trim();
+    const chatId = document.getElementById("chatIdAtivo").value;
 
-    if (!texto || !this.socketChatAtivo) return;
+    if (!texto || !chatId) return;
+
+    // Desativa o botão rapidamente para não enviar duplicado
+    input.disabled = true;
 
     // Verifica se a ligação está aberta (WebSocket.OPEN === 1)
     if (this.socketChatAtivo.readyState === WebSocket.OPEN) {
