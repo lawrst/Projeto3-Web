@@ -1,44 +1,34 @@
-const API_URL = window.APP_CONFIG?.API_URL || "http://127.0.0.1:8000";
-const WS_URL = window.APP_CONFIG?.WS_URL || API_URL.replace(/^http/, "ws");
+const API_URL = "http://127.0.0.1:8000"; // Se for testar online, troque para a sua URL do Render
 const token = localStorage.getItem("token");
 
-// Bloqueio de acesso: Se não houver token, volta para o Login
-if (!token) {
-  window.location.href = "../Login/index.html";
-}
+if (!token) window.location.href = "../Login/index.html";
 
 const KanbanApp = {
   meuCalendario: null,
   socketChatAtivo: null,
+  acaoConfirmacao: null,
 
   init() {
     this.cacheSelectors();
     this.bindEvents();
     this.loadTasks();
     this.atualizarNomeUsuario();
-    // this.conectarSocketSistema(); // Mantido comentado devido ao erro 403 da nova API, mas a lógica está salva abaixo!
   },
 
   cacheSelectors() {
     this.form = document.getElementById("formTarefa");
     this.formEditar = document.getElementById("formEditar");
     this.formNovoRelatorio = document.getElementById("formNovoRelatorio");
-
-    const formChat = document.getElementById("formNovoChat");
-    if (formChat) formChat.onsubmit = (e) => this.criarChat(e);
-
     this.modal = document.getElementById("modalTarefa");
     this.modalDetalhes = document.getElementById("modalDetalhes");
     this.modalNovoRelatorio = document.getElementById("modalNovoRelatorio");
     this.modalVerRelatorio = document.getElementById("modalVerRelatorio");
-
     this.columns = document.querySelectorAll(".column");
     this.labelCamera = document.getElementById("labelCamera");
     this.cameraVisor = document.getElementById("cameraStatus");
   },
 
   bindEvents() {
-    // Eventos do Kanban e Relatórios
     if (this.form) this.form.onsubmit = (e) => this.handleFormSubmit(e);
     if (this.formEditar)
       this.formEditar.onsubmit = (e) => this.handleEditSubmit(e);
@@ -50,68 +40,58 @@ const KanbanApp = {
       location.reload();
     };
 
-    // Drag and Drop do Kanban
     this.columns.forEach((col) => {
       col.ondragover = (e) => e.preventDefault();
       col.ondrop = (e) => this.handleDrop(e);
     });
 
-    // Fechar modais clicando fora deles
-    window.onclick = (e) => {
-      if (e.target === this.modal) this.toggleModal(false);
-      if (e.target === this.modalDetalhes) this.toggleModalDetalhes(false);
-      if (e.target === this.modalNovoRelatorio)
-        this.modalNovoRelatorio.style.display = "none";
-      if (e.target === this.modalVerRelatorio)
-        this.modalVerRelatorio.style.display = "none";
-    };
-
-    // Enviar mensagem no chat ao apertar "Enter"
     const inputChat = document.getElementById("inputNovaMensagem");
-    if (inputChat) {
+    if (inputChat)
       inputChat.addEventListener("keypress", (e) => {
         if (e.key === "Enter") this.enviarMensagemChat();
       });
-    }
+
+    const formChat = document.getElementById("formNovoChat");
+    if (formChat) formChat.onsubmit = (e) => this.criarChat(e);
   },
 
   atualizarNomeUsuario() {
-    const nomeUsuario = localStorage.getItem("usuario_nome");
-    if (nomeUsuario) {
-      document.getElementById("welcomeMsg").innerText = `Olá, ${nomeUsuario}!`;
-    }
+    const nome = localStorage.getItem("usuario_nome");
+    if (nome) document.getElementById("welcomeMsg").innerText = `Olá, ${nome}!`;
   },
 
   trocarTela(tela) {
-    // 1. Esconde todos os menus e telas
-    document.getElementById("menu-kanban").classList.remove("active");
-    document.getElementById("menu-relatorio").classList.remove("active");
-    document.getElementById("menu-chat").classList.remove("active");
+    // 1. Esconde todas as secções
+    ["secaoKanban", "secaoRelatorio", "secaoChat"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = "none";
+    });
 
-    document.getElementById("secaoKanban").style.display = "none";
-    document.getElementById("secaoRelatorio").style.display = "none";
-    document.getElementById("secaoChat").style.display = "none";
+    // 2. Tira a cor azul de todos os itens do menu
+    ["menu-kanban", "menu-relatorio", "menu-chat"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove("active");
+    });
 
-    // 2. Mostra a tela correta
-    if (tela === "kanban") {
-      document.getElementById("menu-kanban").classList.add("active");
-      document.getElementById("secaoKanban").style.display = "grid";
-      this.loadTasks();
-    } else if (tela === "relatorio") {
-      document.getElementById("menu-relatorio").classList.add("active");
-      document.getElementById("secaoRelatorio").style.display = "block";
+    // 3. Mostra apenas a secção escolhida (removendo o "none")
+    const secaoAtiva = document.getElementById(
+      `secao${tela.charAt(0).toUpperCase() + tela.slice(1)}`,
+    );
+    if (secaoAtiva) secaoAtiva.style.display = "";
 
-      if (!this.meuCalendario) {
-        this.iniciarCalendario();
-      } else {
+    // 4. Pinta o menu escolhido de azul
+    const menuAtivo = document.getElementById(`menu-${tela}`);
+    if (menuAtivo) menuAtivo.classList.add("active");
+
+    // 5. Lógica extra para carregar as ferramentas de cada ecrã
+    if (tela === "relatorio") {
+      if (!this.meuCalendario) this.iniciarCalendario();
+      else
         setTimeout(() => {
           this.meuCalendario.updateSize();
           this.meuCalendario.refetchEvents();
         }, 100);
-      }
     } else if (tela === "chat") {
-      document.getElementById("menu-chat").classList.add("active");
-      document.getElementById("secaoChat").style.display = "block";
       this.carregarListaDeChats();
     }
   },
@@ -121,126 +101,126 @@ const KanbanApp = {
   // ==========================================
 
   iniciarCalendario() {
-    const calendarEl = document.getElementById("calendar");
+    this.meuCalendario = new FullCalendar.Calendar(
+      document.getElementById("calendar"),
+      {
+        initialView: "dayGridMonth",
+        locale: "pt-br",
+        height: 600,
+        headerToolbar: { left: "prev,next today", center: "title", right: "" },
+        events: async (info, successCallback) => {
+          try {
+            const resp = await fetch(`${API_URL}/tarefas`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!resp.ok) return successCallback([]);
+            const todas = await resp.json();
 
-    this.meuCalendario = new FullCalendar.Calendar(calendarEl, {
-      initialView: "dayGridMonth",
-      locale: "pt-br",
-      height: 600,
-      headerToolbar: {
-        left: "prev,next today",
-        center: "title",
-        right: "",
+            const eventos = todas
+              .filter((t) => t.status === "Relatorio")
+              .map((t) => {
+                const partes = t.titulo.split(" | ");
+                let data = t.titulo,
+                  hora = "",
+                  tituloReal = t.titulo;
+
+                if (partes.length >= 3) {
+                  data = `${partes[0]}T${partes[1]}:00`;
+                  hora = partes[1];
+                  tituloReal = partes[2];
+                } else if (partes.length === 2) {
+                  data = partes[0];
+                  tituloReal = partes[1];
+                }
+
+                return {
+                  id: t._id,
+                  title: tituloReal,
+                  start: data,
+                  color: "#34a853",
+                  extendedProps: { descricao: t.descricao, hora: hora },
+                };
+              });
+            successCallback(eventos);
+          } catch (e) {
+            successCallback([]);
+          }
+        },
+
+        dateClick: (info) => {
+          const eventosHoje = this.meuCalendario
+            .getEvents()
+            .filter((e) => e.startStr.startsWith(info.dateStr));
+          if (eventosHoje.length > 0)
+            return this.showToast("⚠️ Você já tem um registro para este dia!");
+
+          document.getElementById("dataOcultaRelatorio").value = info.dateStr;
+          document.getElementById("dataEscolhidaRelatorio").innerText =
+            "Data: " +
+            new Date(info.dateStr + "T12:00:00").toLocaleDateString("pt-BR");
+
+          // Pega a hora atual do computador e formata como HH:MM
+          const agora = new Date();
+          const horaAtual =
+            agora.getHours().toString().padStart(2, "0") +
+            ":" +
+            agora.getMinutes().toString().padStart(2, "0");
+
+          document.getElementById("horarioRelatorio").value = horaAtual;
+          document.getElementById("tituloRelatorio").value = "";
+          document.getElementById("resumoRelatorio").value = "";
+          document.getElementById("atividadesRelatorio").value = "";
+          document.getElementById("metaRelatorio").value = "";
+          document.getElementById("dificuldadeRelatorio").value = "Médio";
+
+          this.modalNovoRelatorio.style.display = "block";
+        },
+
+        eventClick: (info) => {
+          const dataApenas = info.event.startStr.split("T")[0];
+          document.getElementById("idOcultoRelatorio").value = info.event.id;
+          document.getElementById("dataOcultaEdicaoRelatorio").value =
+            dataApenas;
+
+          document.getElementById("editHorarioRelatorio").value =
+            info.event.extendedProps.hora || "18:00";
+          document.getElementById("editTituloRelatorio").value =
+            info.event.title;
+
+          try {
+            const dados = JSON.parse(info.event.extendedProps.descricao);
+            document.getElementById("editResumoRelatorio").value =
+              dados.resumo || "";
+            document.getElementById("editAtividadesRelatorio").value =
+              dados.atividades || "";
+            document.getElementById("editDificuldadeRelatorio").value =
+              dados.dificuldade || "Médio";
+            document.getElementById("editMetaRelatorio").value =
+              dados.meta || "";
+          } catch (e) {
+            document.getElementById("editResumoRelatorio").value =
+              info.event.extendedProps.descricao;
+          }
+
+          document.getElementById("verDataRelatorio").innerText =
+            "Data: " +
+            new Date(dataApenas + "T12:00:00").toLocaleDateString("pt-BR");
+          this.modalVerRelatorio.style.display = "block";
+        },
       },
-
-      events: async (info, successCallback, failureCallback) => {
-        try {
-          const resp = await fetch(`${API_URL}/tarefas`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          const todasAsTarefas = await resp.json();
-
-          const relatorios = todasAsTarefas.filter(
-            (t) => t.status === "Relatorio",
-          );
-
-          const eventosFormatados = relatorios.map((t) => {
-            const partes = t.titulo.split(" | ");
-            return {
-              id: t._id,
-              title: partes.length > 1 ? partes[1] : t.titulo,
-              start: partes[0],
-              color: "#34a853",
-              extendedProps: { descricao: t.descricao },
-            };
-          });
-          successCallback(eventosFormatados);
-        } catch (error) {
-          failureCallback(error);
-        }
-      },
-
-      // Clica num dia vazio -> Abre Modal Criar
-      dateClick: (info) => {
-        // VERIFICAÇÃO: Se já existe um evento nesse dia
-        const eventosNoDia = this.meuCalendario
-          .getEvents()
-          .filter((e) => e.startStr === info.dateStr);
-        if (eventosNoDia.length > 0) {
-          this.showToast("⚠️ Você já enviou um relatório hoje!");
-          return;
-        }
-
-        document.getElementById("dataOcultaRelatorio").value = info.dateStr;
-        const dataFormatada = new Date(
-          info.dateStr + "T12:00:00",
-        ).toLocaleDateString("pt-BR");
-        document.getElementById("dataEscolhidaRelatorio").innerText =
-          "Data: " + dataFormatada;
-
-        // Limpa os campos
-        document.getElementById("tituloRelatorio").value = "";
-        document.getElementById("resumoRelatorio").value = "";
-        document.getElementById("atividadesRelatorio").value = "";
-        document.getElementById("metaRelatorio").value = "";
-        document.getElementById("dificuldadeRelatorio").value = "Médio";
-
-        this.modalNovoRelatorio.style.display = "block";
-      },
-
-      eventClick: (info) => {
-        document.getElementById("idOcultoRelatorio").value = info.event.id;
-        document.getElementById("dataOcultaEdicaoRelatorio").value =
-          info.event.startStr;
-        document.getElementById("editTituloRelatorio").value = info.event.title;
-
-        // Tenta ler os dados estruturados da descrição
-        try {
-          const dados = JSON.parse(info.event.extendedProps.descricao);
-          document.getElementById("editResumoRelatorio").value =
-            dados.resumo || "";
-          document.getElementById("editAtividadesRelatorio").value =
-            dados.atividades || "";
-          document.getElementById("editDificuldadeRelatorio").value =
-            dados.dificuldade || "Médio";
-          document.getElementById("editMetaRelatorio").value = dados.meta || "";
-        } catch (e) {
-          // Se for um relatório antigo sem JSON, joga tudo no resumo
-          document.getElementById("editResumoRelatorio").value =
-            info.event.extendedProps.descricao;
-        }
-
-        const dataFormatada = new Date(
-          info.event.startStr + "T12:00:00",
-        ).toLocaleDateString("pt-BR");
-        document.getElementById("verDataRelatorio").innerText =
-          "Data: " + dataFormatada;
-        this.modalVerRelatorio.style.display = "block";
-      },
-    });
-
+    );
     this.meuCalendario.render();
-    setTimeout(() => this.meuCalendario.updateSize(), 200);
   },
 
   async handleRelatorioSubmit(e) {
     e.preventDefault();
-    const titulo = document.getElementById("tituloRelatorio").value;
-    const dataOculta = document.getElementById("dataOcultaRelatorio").value;
+    const tituloFinal = `${document.getElementById("dataOcultaRelatorio").value} | ${document.getElementById("horarioRelatorio").value} | ${document.getElementById("tituloRelatorio").value}`;
 
-    // Criamos um objeto com todos os novos campos
-    const dadosRelatorio = {
+    const dados = {
       resumo: document.getElementById("resumoRelatorio").value,
       atividades: document.getElementById("atividadesRelatorio").value,
       dificuldade: document.getElementById("dificuldadeRelatorio").value,
       meta: document.getElementById("metaRelatorio").value,
-    };
-
-    const payload = {
-      titulo: `${dataOculta} | ${titulo}`,
-      descricao: JSON.stringify(dadosRelatorio), // Salvamos como JSON na descrição
-      status: "Relatorio",
-      usuario_id: "auth",
     };
 
     const resp = await fetch(`${API_URL}/tarefas`, {
@@ -249,32 +229,221 @@ const KanbanApp = {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        titulo: tituloFinal,
+        descricao: JSON.stringify(dados),
+        status: "Relatorio",
+        usuario_id: "auth",
+      }),
     });
-
     if (resp.ok) {
       this.modalNovoRelatorio.style.display = "none";
       this.meuCalendario.refetchEvents();
-      this.showToast("Relatório diário salvo!");
+      this.showToast("Agendamento salvo com sucesso!");
     }
   },
 
   async editarRelatorio() {
-    const id = document.getElementById("idOcultoRelatorio").value;
-    const dataOculta = document.getElementById(
-      "dataOcultaEdicaoRelatorio",
-    ).value;
-
-    const dadosRelatorio = {
+    const tituloFinal = `${document.getElementById("dataOcultaEdicaoRelatorio").value} | ${document.getElementById("editHorarioRelatorio").value} | ${document.getElementById("editTituloRelatorio").value}`;
+    const dados = {
       resumo: document.getElementById("editResumoRelatorio").value,
       atividades: document.getElementById("editAtividadesRelatorio").value,
       dificuldade: document.getElementById("editDificuldadeRelatorio").value,
       meta: document.getElementById("editMetaRelatorio").value,
     };
 
-    const payload = {
-      titulo: `${dataOculta} | ${document.getElementById("editTituloRelatorio").value}`,
-      descricao: JSON.stringify(dadosRelatorio),
+    const resp = await fetch(
+      `${API_URL}/tarefas/editar-texto/${document.getElementById("idOcultoRelatorio").value}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          titulo: tituloFinal,
+          descricao: JSON.stringify(dados),
+        }),
+      },
+    );
+    if (resp.ok) {
+      this.modalVerRelatorio.style.display = "none";
+      this.meuCalendario.refetchEvents();
+      this.showToast("Atualizado!");
+    }
+  },
+
+  async excluirRelatorio() {
+    this.pedirConfirmacao(
+      "Deseja realmente excluir este item do calendário?",
+      async () => {
+        const resp = await fetch(
+          `${API_URL}/tarefas/${document.getElementById("idOcultoRelatorio").value}`,
+          { method: "DELETE", headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (resp.ok) {
+          this.modalVerRelatorio.style.display = "none";
+          this.meuCalendario.refetchEvents();
+          this.showToast("Excluído!");
+        }
+      },
+    );
+  },
+
+  // ==========================================
+  // === FUNÇÕES DO KANBAN COM PRAZOS E DATAS ===
+  // ==========================================
+
+  async loadTasks() {
+    try {
+      const resp = await fetch(`${API_URL}/tarefas`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (resp.ok) {
+        const todas = await resp.json();
+        this.renderTasks(todas.filter((t) => t.status !== "Relatorio"));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  },
+
+  renderTasks(lista) {
+    ["list-todo", "list-doing", "list-done"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = "";
+    });
+
+    lista.forEach((t) => {
+      let dados;
+      try {
+        dados = JSON.parse(t.descricao);
+      } catch {
+        dados = {
+          texto: t.descricao,
+          prazo: "",
+          data_abertura: "",
+          data_inicio: "",
+          data_conclusao: "",
+        };
+      }
+
+      // Lógica de Prazo Vencido
+      let prazoHtml = "";
+      if (dados.prazo) {
+        const hoje = new Date().setHours(0, 0, 0, 0);
+        const dataPrazo = new Date(dados.prazo + "T00:00:00").getTime();
+        const atrasado = dataPrazo < hoje && t.status !== "Concluído";
+        const dataFormatada = new Date(
+          dados.prazo + "T12:00:00",
+        ).toLocaleDateString("pt-BR");
+
+        prazoHtml = `<span style="font-size:11px; font-weight:bold; ${atrasado ? "color:#dc3545;" : "color:#666;"}">🗓️ Prazo: ${dataFormatada} ${atrasado ? "⚠️ Atrasado" : ""}</span><br>`;
+      }
+
+      // Datas de rastreio
+      let rastreioHtml = "";
+      if (t.status === "A Fazer" && dados.data_abertura)
+        rastreioHtml = `Aberto em: ${dados.data_abertura}`;
+      if (t.status === "Fazendo" && dados.data_inicio)
+        rastreioHtml = `Iniciado em: ${dados.data_inicio}`;
+      if (t.status === "Concluído" && dados.data_conclusao)
+        rastreioHtml = `Concluído em: ${dados.data_conclusao}`;
+
+      const card = document.createElement("div");
+      card.className = "task-card";
+      card.draggable = true;
+      card.id = t._id;
+      card.dataset.json = JSON.stringify(dados);
+
+      card.onclick = () => this.abrirEdicao(t._id, t.titulo, t.descricao);
+      card.ondragstart = (e) => {
+        e.dataTransfer.setData("text", e.target.id);
+        e.target.style.opacity = "0.5";
+      };
+      card.ondragend = (e) => (e.target.style.opacity = "1");
+
+      card.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+            <h4 style="margin: 0; font-size: 14px; color: #333;">${t.titulo}</h4>
+            <button onclick="event.stopPropagation(); KanbanApp.deleteTask('${t._id}')" style="background:none; border:none; color:#dc3545; cursor:pointer;" title="Excluir">🗑️</button>
+        </div>
+        <div>
+            ${prazoHtml}
+            <span style="font-size:10px; color:#aaa;">${rastreioHtml}</span>
+        </div>
+      `;
+
+      const containerStatus = {
+        "A Fazer": "list-todo",
+        Fazendo: "list-doing",
+        Concluído: "list-done",
+      }[t.status];
+      const container = document.getElementById(containerStatus);
+      if (container) container.appendChild(card);
+    });
+  },
+
+  async handleFormSubmit(e) {
+    e.preventDefault();
+    const dados = {
+      texto: document.getElementById("descTarefa").value,
+      prazo: document.getElementById("prazoTarefa").value,
+      data_abertura: new Date().toLocaleDateString("pt-BR"),
+      data_inicio: null,
+      data_conclusao: null,
+    };
+
+    const resp = await fetch(`${API_URL}/tarefas`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        titulo: document.getElementById("tituloTarefa").value,
+        descricao: JSON.stringify(dados),
+        status: "A Fazer",
+        usuario_id: "auth",
+      }),
+    });
+    if (resp.ok) {
+      this.toggleModal(false);
+      this.form.reset();
+      this.loadTasks();
+    }
+  },
+
+  abrirEdicao(id, titulo, descricaoJSON) {
+    let dados;
+    try {
+      dados = JSON.parse(descricaoJSON);
+    } catch {
+      dados = { texto: descricaoJSON, prazo: "" };
+    }
+
+    document.getElementById("editId").value = id;
+    document.getElementById("editTitulo").value = titulo;
+    document.getElementById("editDesc").value = dados.texto || "";
+    document.getElementById("editPrazoTarefa").value = dados.prazo || "";
+
+    document.getElementById("editDataAbertura").value =
+      dados.data_abertura || "";
+    document.getElementById("editDataInicio").value = dados.data_inicio || "";
+    document.getElementById("editDataConclusao").value =
+      dados.data_conclusao || "";
+    this.toggleModalDetalhes(true);
+  },
+
+  async handleEditSubmit(e) {
+    e.preventDefault();
+    const id = document.getElementById("editId").value;
+    const dados = {
+      texto: document.getElementById("editDesc").value,
+      prazo: document.getElementById("editPrazoTarefa").value,
+      data_abertura: document.getElementById("editDataAbertura").value,
+      data_inicio: document.getElementById("editDataInicio").value,
+      data_conclusao: document.getElementById("editDataConclusao").value,
     };
 
     const resp = await fetch(`${API_URL}/tarefas/editar-texto/${id}`, {
@@ -283,52 +452,74 @@ const KanbanApp = {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        titulo: document.getElementById("editTitulo").value,
+        descricao: JSON.stringify(dados),
+      }),
     });
-
     if (resp.ok) {
-      this.modalVerRelatorio.style.display = "none";
-      this.meuCalendario.refetchEvents();
-      this.showToast("Relatório atualizado!");
-    }
-
-    try {
-      const resp = await fetch(`${API_URL}/tarefas/editar-texto/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (resp.ok) {
-        this.modalVerRelatorio.style.display = "none";
-        if (this.meuCalendario) this.meuCalendario.refetchEvents();
-        this.showToast("Relatório editado com sucesso!");
-      } else {
-        this.showToast("Erro ao editar o relatório.");
-      }
-    } catch (err) {
-      this.showToast("Erro de conexão.");
+      this.toggleModalDetalhes(false);
+      this.loadTasks();
     }
   },
 
-  async excluirRelatorio() {
-    const id = document.getElementById("idOcultoRelatorio").value;
+  async handleDrop(e) {
+    e.preventDefault();
+    const id = e.dataTransfer.getData("text");
+    const column = e.target.closest(".column");
+    if (!column || !id) return;
 
+    const novoStatus = {
+      "to-do": "A Fazer",
+      doing: "Fazendo",
+      done: "Concluído",
+    }[column.id];
+
+    const cardElement = document.getElementById(id);
+    let dados = JSON.parse(cardElement.dataset.json || "{}");
+    const hojeBR = new Date().toLocaleDateString("pt-BR");
+
+    if (novoStatus === "Fazendo" && !dados.data_inicio)
+      dados.data_inicio = hojeBR;
+    if (novoStatus === "Concluído" && !dados.data_conclusao)
+      dados.data_conclusao = hojeBR;
+
+    await fetch(`${API_URL}/tarefas/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ status: novoStatus }),
+    });
+
+    const titulo = cardElement.querySelector("h4").innerText;
+    await fetch(`${API_URL}/tarefas/editar-texto/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        titulo: titulo,
+        descricao: JSON.stringify(dados),
+      }),
+    });
+
+    this.loadTasks();
+  },
+
+  async deleteTask(id) {
     this.pedirConfirmacao(
-      "Deseja realmente excluir este relatório do calendário?",
+      "Tem certeza que deseja excluir esta tarefa?",
       async () => {
         const resp = await fetch(`${API_URL}/tarefas/${id}`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
         });
-
         if (resp.ok) {
-          this.modalVerRelatorio.style.display = "none";
-          if (this.meuCalendario) this.meuCalendario.refetchEvents();
-          this.showToast("Relatório excluído com sucesso!");
+          this.loadTasks();
+          this.showToast("Tarefa excluída!");
         }
       },
     );
@@ -338,12 +529,81 @@ const KanbanApp = {
   // === FUNÇÕES DO CHAT CORPORATIVO ===
   // ==========================================
 
+  async abrirModalNovoChat() {
+    document.getElementById("nomeNovoChat").value = "";
+    const listaDiv = document.getElementById("listaFuncionariosChat");
+    listaDiv.innerHTML =
+      '<p style="font-size: 12px; color: #888;">Carregando funcionários...</p>';
+    document.getElementById("modalNovoChat").style.display = "block";
+
+    try {
+      const resp = await fetch(`${API_URL}/empresa/funcionarios`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (resp.ok) {
+        const funcionarios = await resp.json();
+        if (funcionarios.length === 0) {
+          listaDiv.innerHTML =
+            "<p style='font-size: 13px; color: #888;'>Nenhum funcionário encontrado.</p>";
+          return;
+        }
+        listaDiv.innerHTML = "";
+        funcionarios.forEach((f) => {
+          const label = document.createElement("label");
+          label.style.cssText =
+            "display: block; margin-bottom: 8px; cursor: pointer; font-size: 14px;";
+          label.innerHTML = `<input type="checkbox" name="func_chat" value="${f.id_usuario}" style="margin-right: 8px;"> ${f.nome} (${f.email})`;
+          listaDiv.appendChild(label);
+        });
+      } else {
+        listaDiv.innerHTML =
+          "<p style='color: #dc3545; font-size: 13px; font-weight: bold;'>⚠️ Apenas usuários 'admin' podem criar salas de chat.</p>";
+      }
+    } catch (err) {
+      listaDiv.innerHTML = "<p style='color: red;'>Erro de conexão.</p>";
+    }
+  },
+
+  async criarChat(e) {
+    e.preventDefault();
+    const nomeChat = document.getElementById("nomeNovoChat").value;
+    const checkboxes = document.querySelectorAll(
+      'input[name="func_chat"]:checked',
+    );
+    const idsSelecionados = Array.from(checkboxes).map((cb) => cb.value);
+
+    try {
+      const resp = await fetch(`${API_URL}/chats`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          nome_chat: nomeChat,
+          funcionarios_ids: idsSelecionados,
+        }),
+      });
+
+      if (resp.ok) {
+        window.fecharModalNovoChat();
+        this.showToast("Chat criado com sucesso!");
+        this.carregarListaDeChats();
+      } else {
+        const erro = await resp.json();
+        this.showToast(erro.detail || "Erro ao criar chat.");
+      }
+    } catch (err) {
+      this.showToast("Erro de conexão.");
+    }
+  },
+
   async carregarListaDeChats() {
     try {
       const resp = await fetch(`${API_URL}/chats`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       const listaDiv = document.getElementById("listaDeChats");
 
       if (resp.ok) {
@@ -358,7 +618,6 @@ const KanbanApp = {
         listaDiv.innerHTML = "";
 
         chats.forEach((chat) => {
-          // Cria um container para colocar o nome do chat e a lixeira lado a lado
           const divContainer = document.createElement("div");
           divContainer.style.cssText =
             "display: flex; gap: 5px; margin-bottom: 8px;";
@@ -367,6 +626,8 @@ const KanbanApp = {
           btnChat.innerText = chat.nome_chat;
           btnChat.style.cssText =
             "flex: 1; padding: 12px; background: #f0f0f0; border: none; border-radius: 6px; text-align: left; cursor: pointer; transition: 0.2s;";
+          btnChat.onmouseover = () => (btnChat.style.background = "#e0e0e0");
+          btnChat.onmouseout = () => (btnChat.style.background = "#f0f0f0");
           btnChat.onclick = () =>
             this.abrirSalaDeChat(chat.id_chat, chat.nome_chat);
 
@@ -388,7 +649,6 @@ const KanbanApp = {
   },
 
   async excluirChat(chatId) {
-    // Usa a caixinha de confirmação bonita que fizemos antes
     this.pedirConfirmacao(
       "Excluir este chat e todas as mensagens? (Apenas Admins)",
       async () => {
@@ -400,9 +660,8 @@ const KanbanApp = {
 
           if (resp.ok) {
             this.showToast("Chat excluído com sucesso!");
-            this.carregarListaDeChats(); // Recarrega a lista
+            this.carregarListaDeChats();
 
-            // Limpa a tela se o chat excluído era o que estava aberto
             if (document.getElementById("chatIdAtivo").value === chatId) {
               document.getElementById("caixaDeMensagens").innerHTML = "";
               document.getElementById("cabecalhoChatAtual").innerText =
@@ -420,79 +679,6 @@ const KanbanApp = {
         }
       },
     );
-  },
-
-  async abrirModalNovoChat() {
-    document.getElementById("nomeNovoChat").value = "";
-    const listaDiv = document.getElementById("listaFuncionariosChat");
-    listaDiv.innerHTML =
-      '<p style="font-size: 12px; color: #888;">Carregando funcionários...</p>';
-    document.getElementById("modalNovoChat").style.display = "block";
-
-    try {
-      // Puxa a lista de funcionários da API
-      const resp = await fetch(`${API_URL}/empresa/funcionarios`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (resp.ok) {
-        const funcionarios = await resp.json();
-        if (funcionarios.length === 0) {
-          listaDiv.innerHTML =
-            "<p style='font-size: 13px; color: #888;'>Nenhum funcionário encontrado na sua empresa.</p>";
-          return;
-        }
-        listaDiv.innerHTML = "";
-        funcionarios.forEach((f) => {
-          const label = document.createElement("label");
-          label.style.cssText =
-            "display: block; margin-bottom: 8px; cursor: pointer; font-size: 14px;";
-          label.innerHTML = `<input type="checkbox" name="func_chat" value="${f.id_usuario}" style="margin-right: 8px;"> ${f.nome} (${f.email})`;
-          listaDiv.appendChild(label);
-        });
-      } else {
-        listaDiv.innerHTML =
-          "<p style='color: #dc3545; font-size: 13px; font-weight: bold;'>⚠️ Apenas usuários 'admin' podem buscar funcionários e criar salas de chat.</p>";
-      }
-    } catch (err) {
-      listaDiv.innerHTML = "<p style='color: red;'>Erro de conexão.</p>";
-    }
-  },
-
-  async criarChat(e) {
-    e.preventDefault();
-    const nomeChat = document.getElementById("nomeNovoChat").value;
-
-    // Pega todos os checkboxes que foram marcados
-    const checkboxes = document.querySelectorAll(
-      'input[name="func_chat"]:checked',
-    );
-    const idsSelecionados = Array.from(checkboxes).map((cb) => cb.value);
-
-    try {
-      const resp = await fetch(`${API_URL}/chats`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          nome_chat: nomeChat,
-          funcionarios_ids: idsSelecionados, // Manda os ids pra API
-        }),
-      });
-
-      if (resp.ok) {
-        fecharModalNovoChat();
-        this.showToast("Chat criado com sucesso!");
-        this.carregarListaDeChats(); // Atualiza a barra lateral na hora
-      } else {
-        const erro = await resp.json();
-        this.showToast(erro.detail || "Erro ao criar chat.");
-      }
-    } catch (err) {
-      this.showToast("Erro de conexão.");
-    }
   },
 
   async abrirSalaDeChat(chatId, nomeChat) {
@@ -525,11 +711,9 @@ const KanbanApp = {
         '<p style="color:red; text-align:center;">Erro ao carregar o histórico.</p>';
     }
 
-    // Chama a função isolada que gere a ligação contínua
     this.conectarWebSocketChat(chatId);
   },
 
-  // NOVA FUNÇÃO: Mantém a ligação viva e reconecta se o servidor (Render) a cortar
   conectarWebSocketChat(chatId) {
     if (this.socketChatAtivo) {
       this.socketChatAtivo.close();
@@ -537,8 +721,10 @@ const KanbanApp = {
 
     const wsProtocol = API_URL.startsWith("https") ? "wss://" : "ws://";
     const wsDomain = API_URL.replace(/^https?:\/\//, "");
+    const tokenSeguro = encodeURIComponent(token);
+
     this.socketChatAtivo = new WebSocket(
-      `${wsProtocol}${wsDomain}/ws/chat/${chatId}?token=${token}`,
+      `${wsProtocol}${wsDomain}/ws/chat/${chatId}?token=${tokenSeguro}`,
     );
 
     this.socketChatAtivo.onmessage = (event) => {
@@ -552,11 +738,8 @@ const KanbanApp = {
       }
     };
 
-    // Lógica Anti-Queda: Se o WebSocket fechar, tenta reconectar sozinho após 3 segundos
     this.socketChatAtivo.onclose = () => {
-      console.log("A ligação do chat caiu. A tentar reconectar...");
       setTimeout(() => {
-        // Só reconecta se o utilizador ainda estiver com a mesma sala de chat aberta
         if (document.getElementById("chatIdAtivo").value === chatId) {
           this.conectarWebSocketChat(chatId);
         }
@@ -564,214 +747,66 @@ const KanbanApp = {
     };
   },
 
-  // NOVA VERSÃO: Envia a mensagem pelo próprio WebSocket (Mais rápido e em tempo real)
+  renderizarMensagemNaTela(autor, texto) {
+    const caixa = document.getElementById("caixaDeMensagens");
+    const meuNome = localStorage.getItem("usuario_nome");
+
+    const divMsg = document.createElement("div");
+
+    if (autor === "Sistema") {
+      divMsg.style.cssText =
+        "text-align: center; color: #888; font-size: 12px; margin: 5px 0;";
+      divMsg.innerText = texto;
+    } else if (autor === meuNome) {
+      divMsg.style.cssText =
+        "align-self: flex-end; background: #d1e7dd; padding: 10px 15px; border-radius: 15px 15px 0 15px; max-width: 70%; word-break: break-word;";
+      divMsg.innerHTML = `<span style="font-size:11px; color:#555; display:block; margin-bottom:3px;">Você</span>${texto}`;
+    } else {
+      divMsg.style.cssText =
+        "align-self: flex-start; background: white; border: 1px solid #ddd; padding: 10px 15px; border-radius: 15px 15px 15px 0; max-width: 70%; word-break: break-word;";
+      divMsg.innerHTML = `<span style="font-size:11px; color:#1a73e8; display:block; margin-bottom:3px;">${autor}</span>${texto}`;
+    }
+
+    caixa.appendChild(divMsg);
+    caixa.scrollTop = caixa.scrollHeight;
+  },
+
   enviarMensagemChat() {
     const input = document.getElementById("inputNovaMensagem");
     const texto = input.value.trim();
-    const chatId = document.getElementById("chatIdAtivo").value;
 
-    if (!texto || !chatId) return;
+    if (!texto || !this.socketChatAtivo) return;
 
-    // Desativa o botão rapidamente para não enviar duplicado
-    input.disabled = true;
-
-    // Verifica se a ligação está aberta (WebSocket.OPEN === 1)
     if (this.socketChatAtivo.readyState === WebSocket.OPEN) {
-      this.socketChatAtivo.send(texto); // O backend encarrega-se de guardar na base de dados
+      this.socketChatAtivo.send(texto);
       input.value = "";
       input.focus();
     } else {
       this.showToast(
-        "⚠️ Reconectando... Aguarde um segundo e tente novamente.",
+        "⚠️ A reconectar ao chat... Aguarde um segundo e tente novamente.",
       );
     }
   },
 
   // ==========================================
-  // === FUNÇÕES DO KANBAN ORIGINAL ===
+  // === UTILITÁRIOS DA INTERFACE / CAMERA ===
   // ==========================================
 
-  async loadTasks() {
-    try {
-      const resp = await fetch(`${API_URL}/tarefas`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (resp.ok) {
-        const todas = await resp.json();
-        // IMPORTANTE: O Kanban só mostra o que não é relatório
-        const tarefasKanban = todas.filter((t) => t.status !== "Relatorio");
-        this.renderTasks(tarefasKanban);
-      }
-    } catch (error) {
-      console.error("Erro ao carregar:", error);
-    }
+  pedirConfirmacao(msg, acao) {
+    document.getElementById("textoConfirmacao").innerText = msg;
+    this.acaoConfirmacao = acao;
+    document.getElementById("modalConfirmar").style.display = "block";
   },
 
-  renderTasks(lista) {
-    const containers = {
-      "A Fazer": "list-todo",
-      Fazendo: "list-doing",
-      Concluído: "list-done",
-    };
-    Object.values(containers).forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) el.innerHTML = "";
-    });
-
-    lista.forEach((t) => {
-      const card = document.createElement("div");
-      card.className = "task-card";
-      card.draggable = true;
-      card.id = t._id;
-
-      card.onclick = () => this.abrirEdicao(t._id, t.titulo, t.descricao);
-
-      card.ondragstart = (e) => {
-        e.dataTransfer.setData("text", e.target.id);
-        e.target.style.opacity = "0.5";
-      };
-      card.ondragend = (e) => (e.target.style.opacity = "1");
-
-      card.innerHTML = `
-                <h4>${t.titulo}</h4>
-                <button onclick="event.stopPropagation(); KanbanApp.deleteTask('${t._id}')">🗑️</button>
-            `;
-
-      const container = document.getElementById(containers[t.status]);
-      if (container) container.appendChild(card);
-    });
-  },
-
-  abrirEdicao(id, titulo, descricao) {
-    document.getElementById("editId").value = id;
-    document.getElementById("editTitulo").value = titulo;
-    document.getElementById("editDesc").value = descricao || "";
-    this.toggleModalDetalhes(true);
-  },
-
-  async handleEditSubmit(e) {
-    e.preventDefault();
-    const id = document.getElementById("editId").value;
-    const payload = {
-      titulo: document.getElementById("editTitulo").value,
-      descricao: document.getElementById("editDesc").value,
-    };
-
-    const resp = await fetch(`${API_URL}/tarefas/editar-texto/${id}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (resp.ok) {
-      this.toggleModalDetalhes(false);
-      this.loadTasks();
-    }
-  },
-
-  async handleDrop(e) {
-    e.preventDefault();
-    const id = e.dataTransfer.getData("text");
-    const column = e.target.closest(".column");
-    if (!column || !id) return;
-
-    const statusMap = {
-      "to-do": "A Fazer",
-      doing: "Fazendo",
-      done: "Concluído",
-    };
-    const novoStatus = statusMap[column.id];
-
-    await fetch(`${API_URL}/tarefas/${id}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ status: novoStatus }),
-    });
-    this.loadTasks();
-  },
-
-  async handleFormSubmit(e) {
-    e.preventDefault();
-    const payload = {
-      titulo: document.getElementById("tituloTarefa").value,
-      descricao: document.getElementById("descTarefa").value,
-      status: "A Fazer",
-      usuario_id: "auth",
-    };
-    const resp = await fetch(`${API_URL}/tarefas`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
-    if (resp.ok) {
-      this.toggleModal(false);
-      this.form.reset();
-      this.loadTasks();
-    }
-  },
-
-  async deleteTask(id) {
-    this.pedirConfirmacao(
-      "Tem certeza que deseja excluir esta tarefa do Kanban?",
-      async () => {
-        await fetch(`${API_URL}/tarefas/${id}`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        this.loadTasks();
-        this.showToast("Tarefa excluída com sucesso!");
-      },
-    );
-  },
-
-  // ==========================================
-  // === UTILITÁRIOS ORIGINAIS (MANTIDOS) ===
-  // ==========================================
-
-  conectarSocketSistema() {
-    const nomeFake = "Monitor_" + Math.floor(Math.random() * 1000);
-    const socket = new WebSocket(`${WS_URL}/ws/chat/${nomeFake}`);
-
-    socket.onmessage = (event) => {
-      if (event.data.includes("SISTEMA_CAMERA: INICIAR_MONITORAMENTO")) {
-        this.ativarAlertaVisualCamera();
-      }
-    };
-
-    socket.onclose = () => setTimeout(() => this.conectarSocketSistema(), 5000);
-  },
-
-  ativarAlertaVisualCamera() {
-    this.showToast("📷 MONITORAMENTO ATIVADO: Sistema de hardware detectado!");
-
-    if (this.labelCamera) {
-      this.labelCamera.innerText = "MONITORAMENTO ATIVO";
-      this.labelCamera.style.color = "#28a745";
-    }
-    if (this.cameraVisor) {
-      this.cameraVisor.style.borderColor = "#28a745";
-      this.cameraVisor.style.boxShadow = "0 0 15px rgba(40, 167, 69, 0.4)";
-    }
+  executarConfirmacao() {
+    if (this.acaoConfirmacao) this.acaoConfirmacao();
+    document.getElementById("modalConfirmar").style.display = "none";
   },
 
   showToast(msg) {
     const toast = document.createElement("div");
     toast.className = "toast-notification";
-    toast.style.cssText = `
-            position: fixed; bottom: 20px; right: 20px; background: #1a73e8; 
-            color: white; padding: 15px 25px; border-radius: 12px; 
-            box-shadow: 0 10px 20px rgba(0,0,0,0.2); z-index: 10000;
-            font-weight: bold; animation: slideIn 0.5s ease-out;
-        `;
+    toast.style.cssText = `position:fixed; bottom:20px; right:20px; background:#1a73e8; color:white; padding:15px 25px; border-radius:12px; font-weight:bold; z-index:10000;`;
     toast.innerHTML = `<span>${msg}</span>`;
     document.body.appendChild(toast);
     setTimeout(() => {
@@ -780,35 +815,37 @@ const KanbanApp = {
     }, 5000);
   },
 
-  acaoConfirmacao: null,
-
-  pedirConfirmacao(mensagem, acao) {
-    document.getElementById("textoConfirmacao").innerText = mensagem;
-    this.acaoConfirmacao = acao;
-    document.getElementById("modalConfirmar").style.display = "block";
-  },
-
-  executarConfirmacao() {
-    if (this.acaoConfirmacao) {
-      this.acaoConfirmacao();
-    }
-    document.getElementById("modalConfirmar").style.display = "none";
-  },
-
   toggleModal(s) {
     this.modal.style.display = s ? "block" : "none";
   },
-
   toggleModalDetalhes(s) {
     this.modalDetalhes.style.display = s ? "block" : "none";
   },
 
+  // Funcionalidades de Hardware/Câmera Mantidas
   ligarCameraOpenCV() {
     this.showToast("Iniciando varredura da câmera...");
   },
+
+  conectarSocketSistema() {
+    const nomeFake = "Monitor_" + Math.floor(Math.random() * 1000);
+    const socket = new WebSocket(`ws://127.0.0.1:8000/ws/chat/${nomeFake}`);
+    socket.onmessage = (event) => {
+      if (event.data.includes("SISTEMA_CAMERA: INICIAR_MONITORAMENTO"))
+        this.ativarAlertaVisualCamera();
+    };
+    socket.onclose = () => setTimeout(() => this.conectarSocketSistema(), 5000);
+  },
+
+  ativarAlertaVisualCamera() {
+    this.showToast("📷 MONITORAMENTO ATIVADO: Sistema de hardware detectado!");
+    if (this.labelCamera) {
+      this.labelCamera.innerText = "MONITORAMENTO ATIVO";
+      this.labelCamera.style.color = "#28a745";
+    }
+  },
 };
 
-// Funções globais para os botões do HTML
 window.abrirModal = () => KanbanApp.toggleModal(true);
 window.fecharModal = () => KanbanApp.toggleModal(false);
 window.fecharModalDetalhes = () => KanbanApp.toggleModalDetalhes(false);
@@ -816,9 +853,7 @@ window.fecharModalNovoRelatorio = () =>
   (document.getElementById("modalNovoRelatorio").style.display = "none");
 window.fecharModalVerRelatorio = () =>
   (document.getElementById("modalVerRelatorio").style.display = "none");
-window.KanbanApp = KanbanApp;
-
-// Inicializa a aplicação
-document.addEventListener("DOMContentLoaded", () => KanbanApp.init());
 window.fecharModalNovoChat = () =>
   (document.getElementById("modalNovoChat").style.display = "none");
+window.KanbanApp = KanbanApp;
+document.addEventListener("DOMContentLoaded", () => KanbanApp.init());
