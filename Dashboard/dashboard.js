@@ -1,4 +1,5 @@
-const API_URL = "http://127.0.0.1:8000"; // Se for testar online, troque para a sua URL do Render
+const API_URL = window.APP_CONFIG?.API_URL || "http://127.0.0.1:8000";
+const WS_URL = window.APP_CONFIG?.WS_URL || API_URL.replace(/^http/, "ws");
 const token = localStorage.getItem("token");
 
 if (!token) window.location.href = "../Login/index.html";
@@ -719,12 +720,10 @@ const KanbanApp = {
       this.socketChatAtivo.close();
     }
 
-    const wsProtocol = API_URL.startsWith("https") ? "wss://" : "ws://";
-    const wsDomain = API_URL.replace(/^https?:\/\//, "");
     const tokenSeguro = encodeURIComponent(token);
 
     this.socketChatAtivo = new WebSocket(
-      `${wsProtocol}${wsDomain}/ws/chat/${chatId}?token=${tokenSeguro}`,
+      `${WS_URL}/ws/chat/${chatId}?token=${tokenSeguro}`,
     );
 
     this.socketChatAtivo.onmessage = (event) => {
@@ -829,7 +828,7 @@ const KanbanApp = {
 
   conectarSocketSistema() {
     const nomeFake = "Monitor_" + Math.floor(Math.random() * 1000);
-    const socket = new WebSocket(`ws://127.0.0.1:8000/ws/chat/${nomeFake}`);
+    const socket = new WebSocket(`${WS_URL}/ws/chat/${nomeFake}`);
     socket.onmessage = (event) => {
       if (event.data.includes("SISTEMA_CAMERA: INICIAR_MONITORAMENTO"))
         this.ativarAlertaVisualCamera();
