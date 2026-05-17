@@ -684,12 +684,11 @@ const KanbanApp = {
 
   async abrirSalaDeChat(chatId, nomeChat) {
     document.getElementById("cabecalhoChatAtual").innerText =
-      `Chat: ${nomeChat}`;
+      `Chat: ${nomeChat} (conectando...)`;
     document.getElementById("chatIdAtivo").value = chatId;
 
-    document.getElementById("inputNovaMensagem").disabled = false;
-    document.getElementById("btnEnviarMensagem").disabled = false;
-    document.getElementById("inputNovaMensagem").focus();
+    document.getElementById("inputNovaMensagem").disabled = true;
+    document.getElementById("btnEnviarMensagem").disabled = true;
 
     const caixa = document.getElementById("caixaDeMensagens");
     caixa.innerHTML =
@@ -726,6 +725,25 @@ const KanbanApp = {
       `${WS_URL}/ws/chat/${chatId}?token=${tokenSeguro}`,
     );
 
+    const habilitarChat = () => {
+      document.getElementById("inputNovaMensagem").disabled = false;
+      document.getElementById("btnEnviarMensagem").disabled = false;
+      document.getElementById("inputNovaMensagem").focus();
+      const nomeChat = document
+        .getElementById("cabecalhoChatAtual")
+        .innerText.replace(" (conectando...)", "");
+      document.getElementById("cabecalhoChatAtual").innerText = nomeChat;
+    };
+
+    const desabilitarChat = () => {
+      document.getElementById("inputNovaMensagem").disabled = true;
+      document.getElementById("btnEnviarMensagem").disabled = true;
+      const cabecalho = document.getElementById("cabecalhoChatAtual");
+      if (cabecalho && !cabecalho.innerText.includes("(conectando...)")) {
+        cabecalho.innerText = `${cabecalho.innerText} (conectando...)`;
+      }
+    };
+
     this.socketChatAtivo.onmessage = (event) => {
       const dados = event.data.split(": ");
       if (dados.length >= 2) {
@@ -737,7 +755,18 @@ const KanbanApp = {
       }
     };
 
+    this.socketChatAtivo.onopen = () => {
+      if (document.getElementById("chatIdAtivo").value === chatId) {
+        habilitarChat();
+      }
+    };
+
+    this.socketChatAtivo.onerror = () => {
+      desabilitarChat();
+    };
+
     this.socketChatAtivo.onclose = () => {
+      desabilitarChat();
       setTimeout(() => {
         if (document.getElementById("chatIdAtivo").value === chatId) {
           this.conectarWebSocketChat(chatId);
