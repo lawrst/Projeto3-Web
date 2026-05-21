@@ -93,6 +93,36 @@
               </p>
             </button>
           </div>
+          <div style="display: grid; gap: 10px; margin-top: 12px">
+            <button
+              onclick="KanbanApp.abrirFluxoFacial('ponto')"
+              style="
+                background: #1a73e8;
+                color: white;
+                border: none;
+                border-radius: 10px;
+                padding: 10px 12px;
+                font-weight: 700;
+                cursor: pointer;
+              "
+            >
+              Bater ponto facial
+            </button>
+            <button
+              onclick="KanbanApp.abrirFluxoFacial('register')"
+              style="
+                background: transparent;
+                color: #fff;
+                border: 1px solid #444;
+                border-radius: 10px;
+                padding: 10px 12px;
+                font-weight: 600;
+                cursor: pointer;
+              "
+            >
+              Atualizar facial
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -771,6 +801,21 @@
             Cancelar
           </button>
         </div>
+      </div>
+    </div>
+
+    <div id="securityOverlay" class="security-overlay" aria-live="assertive">
+      <div class="security-card">
+        <h2>Seguranca ativa</h2>
+        <p>
+          Foi detectada uma situacao de risco. Esta sessao foi bloqueada ate
+          liberacao por um administrador.
+        </p>
+        <p id="securityReason" class="security-reason">Motivo: alerta ativo</p>
+        <p id="securityTime" class="security-time">Ultimo alerta: agora</p>
+        <button id="unlockSecurityBtn" class="security-unlock-btn" style="display: none">
+          Desbloquear sessao
+        </button>
       </div>
     </div>
 

@@ -8,12 +8,16 @@ const KanbanApp = {
   meuCalendario: null,
   socketChatAtivo: null,
   acaoConfirmacao: null,
+  securityPollingId: null,
 
-  init() {
+  async init() {
     this.cacheSelectors();
     this.bindEvents();
+    const podeContinuar = await this.verificarEstadoFacial();
+    if (!podeContinuar) return;
     this.loadTasks();
     this.atualizarNomeUsuario();
+    this.iniciarMonitorSeguranca();
   },
 
   cacheSelectors() {
@@ -27,6 +31,10 @@ const KanbanApp = {
     this.columns = document.querySelectorAll(".column");
     this.labelCamera = document.getElementById("labelCamera");
     this.cameraVisor = document.getElementById("cameraStatus");
+    this.securityOverlay = document.getElementById("securityOverlay");
+    this.securityReason = document.getElementById("securityReason");
+    this.securityTime = document.getElementById("securityTime");
+    this.unlockSecurityBtn = document.getElementById("unlockSecurityBtn");
   },
 
   bindEvents() {
@@ -37,9 +45,14 @@ const KanbanApp = {
       this.formNovoRelatorio.onsubmit = (e) => this.handleRelatorioSubmit(e);
 
     document.getElementById("logoutBtn").onclick = () => {
+      if (this.securityPollingId) clearInterval(this.securityPollingId);
       localStorage.clear();
       location.reload();
     };
+
+    if (this.unlockSecurityBtn) {
+      this.unlockSecurityBtn.onclick = () => this.desbloquearSeguranca();
+    }
 
     this.columns.forEach((col) => {
       col.ondragover = (e) => e.preventDefault();
@@ -56,9 +69,113 @@ const KanbanApp = {
     if (formChat) formChat.onsubmit = (e) => this.criarChat(e);
   },
 
+  async verificarEstadoFacial() {
+    try {
+      const resp = await fetch(`${API_URL}/rosto/estado`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!resp.ok) return true;
+
+      const dados = await resp.json();
+      localStorage.setItem("usuario_tem_rosto", dados.tem_rosto ? "1" : "0");
+
+      if (!dados.tem_rosto) {
+        window.location.href = "../Face/index.html?mode=register";
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.warn("Falha ao consultar status facial:", error);
+      return true;
+    }
+  },
+
   atualizarNomeUsuario() {
     const nome = localStorage.getItem("usuario_nome");
     if (nome) document.getElementById("welcomeMsg").innerText = `Olá, ${nome}!`;
+  },
+
+  abrirFluxoFacial(modo = "register") {
+    window.location.href = `../Face/index.html?mode=${modo}`;
+  },
+
+  iniciarMonitorSeguranca() {
+    this.consultarEstadoSeguranca();
+    if (this.securityPollingId) clearInterval(this.securityPollingId);
+    this.securityPollingId = setInterval(() => {
+      this.consultarEstadoSeguranca();
+    }, 4000);
+  },
+
+  async consultarEstadoSeguranca() {
+    try {
+      const resp = await fetch(`${API_URL}/seguranca/estado`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!resp.ok) return;
+      const estado = await resp.json();
+      this.aplicarBloqueioSeguranca(estado);
+    } catch (error) {
+      console.warn("Falha ao consultar estado de seguranca:", error);
+    }
+  },
+
+  aplicarBloqueioSeguranca(estado) {
+    if (!this.securityOverlay) return;
+
+    const ativo = Boolean(estado?.bloqueio_ativo);
+    if (!ativo) {
+      this.securityOverlay.classList.remove("is-active");
+      return;
+    }
+
+    this.securityOverlay.classList.add("is-active");
+    if (this.securityReason) {
+      this.securityReason.innerText =
+        estado?.motivo || "Alerta de seguranca ativo";
+    }
+    if (this.securityTime) {
+      this.securityTime.innerText = estado?.ultimo_alerta_em
+        ? `Ultimo alerta: ${new Date(estado.ultimo_alerta_em).toLocaleString("pt-BR")}`
+        : "Ultimo alerta: agora";
+    }
+
+    const role = (localStorage.getItem("usuario_role") || "").toLowerCase();
+    if (this.unlockSecurityBtn) {
+      this.unlockSecurityBtn.style.display = role === "admin" ? "inline-flex" : "none";
+    }
+  },
+
+  async desbloquearSeguranca() {
+    const role = (localStorage.getItem("usuario_role") || "").toLowerCase();
+    if (role !== "admin") {
+      this.showToast("Somente admin pode desbloquear.");
+      return;
+    }
+
+    try {
+      const resp = await fetch(`${API_URL}/seguranca/desbloquear`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ observacao: "Desbloqueio via dashboard" }),
+      });
+
+      const dados = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        throw new Error(dados.detail || "Nao foi possivel desbloquear.");
+      }
+
+      this.showToast("Seguranca desbloqueada.");
+      this.securityOverlay?.classList.remove("is-active");
+    } catch (error) {
+      this.showToast(error.message || "Falha ao desbloquear seguranca.");
+    }
   },
 
   trocarTela(tela) {

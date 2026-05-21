@@ -302,3 +302,59 @@ button[type="submit"] {
     gap: 20px;
   }
 }
+
+.security-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(12, 14, 18, 0.86);
+  z-index: 30000;
+  padding: 24px;
+}
+
+.security-overlay.is-active {
+  display: flex;
+}
+
+.security-card {
+  width: min(560px, 100%);
+  background: #111827;
+  color: #f3f4f6;
+  border: 1px solid #374151;
+  border-radius: 16px;
+  padding: 28px;
+  text-align: center;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.security-card h2 {
+  font-size: 28px;
+  margin-bottom: 12px;
+}
+
+.security-card p {
+  color: #cbd5e1;
+  margin: 8px 0;
+}
+
+.security-reason {
+  font-weight: 700;
+  color: #fca5a5;
+}
+
+.security-time {
+  font-size: 14px;
+}
+
+.security-unlock-btn {
+  margin-top: 16px;
+  background: #22c55e;
+  color: #052e16;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
