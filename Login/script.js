@@ -51,11 +51,15 @@ const LoginApp = {
   handleSuccess(data) {
     localStorage.setItem("token", data.token);
     localStorage.setItem("usuario_nome", data.usuario);
-
-    localStorage.setItem("usuario_id", "autenticado");
+    localStorage.setItem("usuario_id", data.usuario_id || "");
+    localStorage.setItem("usuario_role", data.role || "funcionario");
+    localStorage.setItem("empresa_id", data.empresa_id || "");
+    localStorage.setItem("usuario_tem_rosto", data.tem_rosto ? "1" : "0");
 
     alert("Login realizado com sucesso!");
-    window.location.href = "../Dashboard/dashboard.html";
+    window.location.href = data.tem_rosto
+      ? "../Dashboard/dashboard.html"
+      : "../Face/index.html?mode=register";
   },
 
   showMessage(text, color) {
