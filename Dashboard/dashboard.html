@@ -76,13 +76,14 @@
               border: 1px solid #1a73e8;
             "
           >
-            <button
-              onclick="KanbanApp.ligarCameraOpenCV()"
+            <div
+              aria-hidden="true"
               style="
                 background: none;
                 border: none;
-                cursor: pointer;
+                cursor: default;
                 color: white;
+                text-align: center;
               "
             >
               <span style="font-size: 24px">📷</span>
@@ -95,9 +96,9 @@
                   color: #1a73e8;
                 "
               >
-                LIGAR CÂMERA
+                <!-- botão removido -->
               </p>
-            </button>
+            </div>
           </div>
           <div style="display: grid; gap: 10px; margin-top: 12px">
             <button
