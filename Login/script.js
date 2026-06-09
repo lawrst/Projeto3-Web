@@ -55,6 +55,11 @@ const LoginApp = {
     localStorage.setItem("usuario_role", data.role || "funcionario");
     localStorage.setItem("empresa_id", data.empresa_id || "");
     localStorage.setItem("usuario_tem_rosto", data.tem_rosto ? "1" : "0");
+    if (data.agente_desktop) {
+      localStorage.setItem("agente_desktop", JSON.stringify(data.agente_desktop));
+    } else {
+      localStorage.removeItem("agente_desktop");
+    }
 
     alert("Login realizado com sucesso!");
     window.location.href = data.tem_rosto

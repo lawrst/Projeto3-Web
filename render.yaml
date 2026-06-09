@@ -2,5 +2,5 @@ services:
   - type: static_site
     name: projeto3-web
     env: static
-    buildCommand: ""
+    buildCommand: "mkdir -p downloads && if [ -f ../Projeto3-Desktop/dist/VERIFIQ.exe ]; then cp ../Projeto3-Desktop/dist/VERIFIQ.exe downloads/VERIFIQ.exe; fi"
     staticPublishPath: .

@@ -9,10 +9,13 @@ const KanbanApp = {
   socketChatAtivo: null,
   acaoConfirmacao: null,
   securityPollingId: null,
+  agentPollingId: null,
 
   async init() {
     this.cacheSelectors();
     this.bindEvents();
+    this.carregarStatusAgenteInicial();
+    this.iniciarMonitorAgente();
     const podeContinuar = await this.verificarEstadoFacial();
     if (!podeContinuar) return;
     this.loadTasks();
@@ -31,6 +34,11 @@ const KanbanApp = {
     this.columns = document.querySelectorAll(".column");
     this.labelCamera = document.getElementById("labelCamera");
     this.cameraVisor = document.getElementById("cameraStatus");
+    this.agenteStatusBadge = document.getElementById("agenteStatusBadge");
+    this.agenteStatusDetail = document.getElementById("agenteStatusDetail");
+    this.agenteStatusVersion = document.getElementById("agenteStatusVersion");
+    this.agenteStatusHeartbeat = document.getElementById("agenteStatusHeartbeat");
+    this.agenteStatusMonitoring = document.getElementById("agenteStatusMonitoring");
     this.securityOverlay = document.getElementById("securityOverlay");
     this.securityReason = document.getElementById("securityReason");
     this.securityTime = document.getElementById("securityTime");
@@ -46,6 +54,7 @@ const KanbanApp = {
 
     document.getElementById("logoutBtn").onclick = () => {
       if (this.securityPollingId) clearInterval(this.securityPollingId);
+      if (this.agentPollingId) clearInterval(this.agentPollingId);
       localStorage.clear();
       location.reload();
     };
@@ -99,6 +108,103 @@ const KanbanApp = {
 
   abrirFluxoFacial(modo = "register") {
     window.location.href = `../Face/index.html?mode=${modo}`;
+  },
+
+  carregarStatusAgenteInicial() {
+    const estadoSalvo = localStorage.getItem("agente_desktop");
+    if (!estadoSalvo) {
+      this.renderizarStatusAgente(null);
+      return;
+    }
+
+    try {
+      this.renderizarStatusAgente(JSON.parse(estadoSalvo));
+    } catch (error) {
+      this.renderizarStatusAgente(null);
+    }
+  },
+
+  iniciarMonitorAgente() {
+    this.consultarStatusAgente();
+    if (this.agentPollingId) clearInterval(this.agentPollingId);
+    this.agentPollingId = setInterval(() => {
+      this.consultarStatusAgente();
+    }, 15000);
+  },
+
+  async consultarStatusAgente() {
+    try {
+      const resp = await fetch(`${API_URL}/desktop/devices/status`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!resp.ok) {
+        this.renderizarStatusAgente({ pareado: false, conectado: false, monitorando: false, estado: "desconectado" });
+        return;
+      }
+
+      const estado = await resp.json();
+      localStorage.setItem("agente_desktop", JSON.stringify(estado));
+      this.renderizarStatusAgente(estado);
+    } catch (error) {
+      console.warn("Falha ao consultar status do agente desktop:", error);
+      const estadoSalvo = localStorage.getItem("agente_desktop");
+      if (estadoSalvo) {
+        try {
+          this.renderizarStatusAgente(JSON.parse(estadoSalvo));
+          return;
+        } catch (parseError) {
+          // ignora e cai no estado offline abaixo
+        }
+      }
+      this.renderizarStatusAgente(null);
+    }
+  },
+
+  renderizarStatusAgente(estado) {
+    const pareado = Boolean(estado?.pareado);
+    const conectado = Boolean(estado?.conectado);
+    const monitorando = Boolean(estado?.monitorando);
+    const dispositivo = estado?.dispositivo || {};
+    const statusTexto = monitorando
+      ? "Monitorando"
+      : conectado
+        ? "Conectado"
+        : "Desconectado";
+    const statusClasse = monitorando
+      ? "is-monitoring"
+      : conectado
+        ? "is-online"
+        : "is-offline";
+    const detalheTexto = !pareado
+      ? "Nenhum dispositivo desktop pareado com esta conta."
+      : conectado
+        ? `${dispositivo.device_name || "Desktop VERIFIQ"} está online e pronto para receber comandos.`
+        : `${dispositivo.device_name || "Desktop VERIFIQ"} está offline. O comando ficará pendente.`;
+
+    if (this.agenteStatusBadge) {
+      this.agenteStatusBadge.className = `agent-status-badge ${statusClasse}`;
+      this.agenteStatusBadge.textContent = statusTexto;
+    }
+
+    if (this.agenteStatusDetail) {
+      this.agenteStatusDetail.textContent = detalheTexto;
+    }
+
+    if (this.agenteStatusVersion) {
+      this.agenteStatusVersion.textContent = `Versão: ${dispositivo.agent_version || estado?.agent_version || "-"}`;
+    }
+
+    if (this.agenteStatusHeartbeat) {
+      const ultimoHeartbeat = estado?.ultimo_heartbeat_em || estado?.heartbeat_at || null;
+      this.agenteStatusHeartbeat.textContent = ultimoHeartbeat
+        ? `Heartbeat: ${new Date(ultimoHeartbeat).toLocaleString("pt-BR")}`
+        : "Heartbeat: -";
+    }
+
+    if (this.agenteStatusMonitoring) {
+      this.agenteStatusMonitoring.textContent = `Monitoramento: ${monitorando ? "Ativo" : conectado ? "Aguardando" : "Inativo"}`;
+    }
   },
 
   iniciarMonitorSeguranca() {
