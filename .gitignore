@@ -1,0 +1,18 @@
+# Ambiente
+.env
+.env.*
+
+# Python (scripts locais, ex.: teste_camera.py)
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# Executável copiado do desktop para publicação no Render
+downloads/*.exe
+
+# IDE / SO
+.vscode/
+.DS_Store
+Thumbs.db
