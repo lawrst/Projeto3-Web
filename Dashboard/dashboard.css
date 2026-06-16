@@ -433,11 +433,12 @@ button[type="submit"] {
   margin-top: 12px;
   padding: 10px 12px;
   border-radius: 10px;
+  border: none;
   background: #38bdf8;
   color: #082f49;
   font-size: 12px;
   font-weight: 800;
-  text-decoration: none;
+  cursor: pointer;
   transition: background 0.15s ease, transform 0.15s ease;
 }
 
